@@ -6,7 +6,7 @@ import '../providers/calibration_provider.dart';
 
 class DetailedReportPage extends StatefulWidget {
   final List<MeterEntry> meterEntries;
-  final int startPageIndex; // optional to start at a specific page
+  final int startPageIndex;
 
   const DetailedReportPage({Key? key, required this.meterEntries, this.startPageIndex = 0}) : super(key: key);
 
@@ -17,7 +17,6 @@ class DetailedReportPage extends StatefulWidget {
 class _DetailedReportPageState extends State<DetailedReportPage> {
   late final PageController _pageController;
   int _current = 0;
-
 
   @override
   void initState() {
@@ -44,98 +43,15 @@ class _DetailedReportPageState extends State<DetailedReportPage> {
     );
   }
 
-  /// Build the per-cal-point block. It will read Reference Readings from meterEntries
-  /// by using a simple mapping: calPoint index -> meter rows slice.
-  /// If your meterEntries map differently adjust the mapping logic as needed.
-  // Widget _buildCalPointBlock(BuildContext context, int calIndex, List<MeterEntry> meterEntries) {
-  //   final prov = Provider.of<CalibrationProvider>(context, listen: false);
-  //   final cal = prov.calPoints[calIndex];
-  //
-  //   // For demo we map reference readings to these values:
-  //   // If meterEntries length matches exactly 12*? or so you may need custom mapping.
-  //   // Here we simply try to use meterEntries[calIndex*? ..] fallback to cal.refReadings if missing.
-  //   // Adjust as per your table layout.
-  //   final int base = calIndex * 1; // simple direct mapping: one meterEntry per calPoint
-  //   MeterEntry? m;
-  //   if (widget.meterEntries.length > base) m = widget.meterEntries[base];
-  //
-  //   // build the small table: Reference | Corr | Actual | Test columns (Test columns come from cal.testReadings)
-  //   return Card(
-  //     elevation: 2,
-  //     margin: const EdgeInsets.symmetric(vertical: 8),
-  //     child: Padding(
-  //       padding: const EdgeInsets.all(12.0),
-  //       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-  //         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-  //           Text('Cal. Point : ${calIndex + 1}', style: const TextStyle(fontWeight: FontWeight.w600)),
-  //           Text('Setting: ${cal.setting}    Bath: ${cal.rightInfo['Bath'] ?? ''}    Immer: ${cal.rightInfo['Immer.'] ?? ''}'),
-  //         ]),
-  //         const SizedBox(height: 8),
-  //         // Row headers
-  //         Row(children: const [
-  //           Expanded(child: Text('Reference Reading')),
-  //           SizedBox(width: 8),
-  //           Expanded(child: Text('Meter Corr.')),
-  //           SizedBox(width: 8),
-  //           Expanded(child: Text('Actual')),
-  //           SizedBox(width: 8),
-  //           Expanded(child: Text('Test Before Adj')),
-  //           SizedBox(width: 8),
-  //         ]),
-  //         const Divider(),
-  //         // We'll show up to 6 rows: prefer provider cal.refReadings if meter entry unavailable,
-  //         ...List.generate(6, (r) {
-  //           final refFromCal = (r < cal.refReadings.length) ? cal.refReadings[r] : '';
-  //           String refDisplay = refFromCal;
-  //           // If meterEntry exists we can map some values (example mapping below)
-  //           if (m != null) {
-  //             // example: show meter lowerValue and/or upperValue as reference depending on row
-  //             // this is placeholder mapping; replace with your real mapping rules
-  //             if (r % 2 == 0) {
-  //               refDisplay = m.lowerValue.toStringAsFixed(4);
-  //             } else {
-  //               refDisplay = m.upperValue.toStringAsFixed(4);
-  //             }
-  //           }
-  //           final testVal = (r < cal.testReadings.length) ? cal.testReadings[r] : '';
-  //           final meterCorr = m != null ? (r % 2 == 0 ? m.lowerCorrection : m.upperCorrection).toStringAsFixed(4) : '';
-  //           final actual = refDisplay.isNotEmpty && meterCorr.isNotEmpty
-  //               ? (double.tryParse(refDisplay) ?? 0.0) + (double.tryParse(meterCorr) ?? 0.0)
-  //               : '';
-  //           return Padding(
-  //             padding: const EdgeInsets.symmetric(vertical: 2.0),
-  //             child: Row(children: [
-  //               Expanded(child: Text(refDisplay, textAlign: TextAlign.left)),
-  //               const SizedBox(width: 8),
-  //               Expanded(child: Text(meterCorr, textAlign: TextAlign.left)),
-  //               const SizedBox(width: 8),
-  //               Expanded(child: Text(actual is String ? actual : (actual as double).toStringAsFixed(4), textAlign: TextAlign.left)),
-  //               const SizedBox(width: 8),
-  //               Expanded(child: Text(testVal, textAlign: TextAlign.left)),
-  //               const SizedBox(width: 8),
-  //             ]),
-  //           );
-  //         }),
-  //         const SizedBox(height: 6),
-  //         // footer: Ref. Ther used etc (use cal.rightInfo)
-  //         Row(children: [
-  //           Text('Ref. Ther. Used: ${cal.rightInfo['Ref. Ther.'] ?? ''}'),
-  //           const SizedBox(width: 24),
-  //           Text('Ref. Ind. Used: ${cal.rightInfo['Ref. Ind.'] ?? ''}'),
-  //         ]),
-  //       ]),
-  //     ),
-  //   );
-  // }
   Widget _buildCalPointBlock(BuildContext context, int calIndex, List<MeterEntry> meterEntries) {
     final prov = Provider.of<CalibrationProvider>(context, listen: false);
     final cal = prov.calPoints[calIndex];
 
-    final int base = calIndex * 1;
+    // Try to find a meter entry mapping for fallback display (do not overwrite provider values)
+    final int base = calIndex; // simple base; we use meterEntries only as fallback display
     MeterEntry? m;
     if (widget.meterEntries.length > base) m = widget.meterEntries[base];
 
-    // We'll collect reference readings as doubles for averaging
     final List<double> refValues = [];
 
     return Card(
@@ -149,39 +65,44 @@ class _DetailedReportPageState extends State<DetailedReportPage> {
             Text('Setting: ${cal.setting}    Bath: ${cal.rightInfo['Bath'] ?? ''}    Immer: ${cal.rightInfo['Immer.'] ?? ''}'),
           ]),
           const SizedBox(height: 8),
-
-          // Row headers
           Row(children: const [
             Expanded(child: Text('Reference Reading')),
             SizedBox(width: 8),
             Expanded(child: Text('Meter Corr.')),
             SizedBox(width: 8),
-            Expanded(child: Text('Actual')),
+            Expanded(child: Text('Ther Corr.')),
             SizedBox(width: 8),
             Expanded(child: Text('Test Before Adj')),
             SizedBox(width: 8),
           ]),
           const Divider(),
 
-          // The 6 data rows
+          // 6 rows - PRESERVE provider refReadings; only fall back to meterEntries if provider value empty
           ...List.generate(6, (r) {
-            final refFromCal = (r < cal.refReadings.length) ? cal.refReadings[r] : '';
-            String refDisplay = refFromCal;
-            if (m != null) {
-              if (r % 2 == 0) {
-                refDisplay = m.lowerValue.toStringAsFixed(4);
-              } else {
-                refDisplay = m.upperValue.toStringAsFixed(4);
-              }
+            final providerRef = (r < cal.refReadings.length) ? cal.refReadings[r] : '';
+            String refDisplay = '';
+            if (providerRef.trim().isNotEmpty) {
+              refDisplay = providerRef;
+            } else if (m != null) {
+              // fallback mapping (non-destructive)
+              refDisplay = (r % 2 == 0) ? m.lowerValue.toStringAsFixed(4) : m.upperValue.toStringAsFixed(4);
             }
 
             final refNum = double.tryParse(refDisplay);
             if (refNum != null) refValues.add(refNum);
 
             final testVal = (r < cal.testReadings.length) ? cal.testReadings[r] : '';
-            final meterCorr = m != null ? (r % 2 == 0 ? m.lowerCorrection : m.upperCorrection).toStringAsFixed(4) : '';
-            final actual = refDisplay.isNotEmpty && meterCorr.isNotEmpty
-                ? (double.tryParse(refDisplay) ?? 0.0) + (double.tryParse(meterCorr) ?? 0.0)
+
+            // determine meterCorr: prefer computed per-row value from CalPoint, else fallback to per-row meter table corrections
+            String meterCorr = '';
+            if (cal.meterCorrPerRow.isNotEmpty && cal.meterCorrPerRow[r].isNotEmpty) {
+              meterCorr = cal.meterCorrPerRow[r];
+            } else if (m != null) {
+              meterCorr = (r % 2 == 0 ? m.lowerCorrection : m.upperCorrection).toStringAsFixed(4);
+            }
+
+            final actualStr = (refDisplay.isNotEmpty && meterCorr.isNotEmpty)
+                ? ((double.tryParse(refDisplay) ?? 0.0) + (double.tryParse(meterCorr) ?? 0.0)).toStringAsFixed(4)
                 : '';
 
             return Padding(
@@ -189,13 +110,9 @@ class _DetailedReportPageState extends State<DetailedReportPage> {
               child: Row(children: [
                 Expanded(child: Text(refDisplay, textAlign: TextAlign.left)),
                 const SizedBox(width: 8),
-                Expanded(child: Text(meterCorr, textAlign: TextAlign.left)),
+                Expanded(child: Text(meterCorr, textAlign: TextAlign.left, style: const TextStyle(fontWeight: FontWeight.w600))),
                 const SizedBox(width: 8),
-                Expanded(
-                    child: Text(actual is String
-                        ? actual
-                        : (actual as double).toStringAsFixed(4),
-                        textAlign: TextAlign.left)),
+                Expanded(child: Text(actualStr, textAlign: TextAlign.left)),
                 const SizedBox(width: 8),
                 Expanded(child: Text(testVal, textAlign: TextAlign.left)),
                 const SizedBox(width: 8),
@@ -205,30 +122,28 @@ class _DetailedReportPageState extends State<DetailedReportPage> {
 
           const Divider(),
 
-          // NEW: Average row
+          // Average row (does not override reference readings)
           Builder(builder: (_) {
             if (refValues.isEmpty) return const SizedBox();
             final avg = refValues.reduce((a, b) => a + b) / refValues.length;
+            // show avg and also the computed meterCorr if present
+            final computed = cal.meterCorrPerRow.isNotEmpty ? cal.meterCorrPerRow[0] : '';
             return Padding(
               padding: const EdgeInsets.symmetric(vertical: 4.0),
               child: Row(children: [
-                Expanded(
-                    child: Text('Average: ${avg.toStringAsFixed(8)}',
-                        style: const TextStyle(fontWeight: FontWeight.bold))),
+                Expanded(child: Text('Average: ${avg.toStringAsFixed(8)}', style: const TextStyle(fontWeight: FontWeight.bold))),
                 const SizedBox(width: 8),
-                const Expanded(child: Text('')), // empty Meter Corr.
+                Expanded(child: Text(computed.isNotEmpty ? 'Meter Corr: $computed' : '', style: const TextStyle(fontWeight: FontWeight.bold))),
                 const SizedBox(width: 8),
-                const Expanded(child: Text('')), // empty Actual
+                const Expanded(child: Text('')), // actual
                 const SizedBox(width: 8),
-                const Expanded(child: Text('')), // empty Test
+                const Expanded(child: Text('')), // test
                 const SizedBox(width: 8),
               ]),
             );
           }),
 
           const SizedBox(height: 6),
-
-          // footer
           Row(children: [
             Text('Ref. Ther. Used: ${cal.rightInfo['Ref. Ther.'] ?? ''}'),
             const SizedBox(width: 24),
@@ -239,14 +154,10 @@ class _DetailedReportPageState extends State<DetailedReportPage> {
     );
   }
 
-
   @override
   Widget build(BuildContext context) {
     final prov = Provider.of<CalibrationProvider>(context, listen: false);
-    // We'll make 3 pages: page0 contains header + cal points 1-3,
-    // page1 contains cal points 4-6, page2 contains cal points 7-8 + signatures
     final pages = <Widget>[
-      // Page 1 (cal points 1..3)
       Builder(builder: (ctx) {
         return SingleChildScrollView(
           padding: const EdgeInsets.all(16),
@@ -259,7 +170,6 @@ class _DetailedReportPageState extends State<DetailedReportPage> {
           ]),
         );
       }),
-      // Page 2 (cal points 4..6)
       Builder(builder: (ctx) {
         return SingleChildScrollView(
           padding: const EdgeInsets.all(16),
@@ -272,7 +182,6 @@ class _DetailedReportPageState extends State<DetailedReportPage> {
           ]),
         );
       }),
-      // Page 3 (cal points 7..8 and signatures)
       Builder(builder: (ctx) {
         return SingleChildScrollView(
           padding: const EdgeInsets.all(16),
@@ -282,15 +191,14 @@ class _DetailedReportPageState extends State<DetailedReportPage> {
             _buildCalPointBlock(ctx, 6, widget.meterEntries),
             _buildCalPointBlock(ctx, 7, widget.meterEntries),
             const SizedBox(height: 24),
-            // signature boxes
-            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: const [
+            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: const [
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('CALIBRATED BY :'),
                 SizedBox(height: 8),
                 Text('Signature : ___________________'),
                 Text('Name      : ___________________'),
               ]),
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: const [
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('VERIFIED BY :'),
                 SizedBox(height: 8),
                 Text('Signature : ___________________'),
@@ -303,9 +211,7 @@ class _DetailedReportPageState extends State<DetailedReportPage> {
     ];
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Detailed Calculation Report'),
-      ),
+      appBar: AppBar(title: const Text('Detailed Calculation Report')),
       body: Column(children: [
         Expanded(
           child: PageView.builder(
@@ -334,12 +240,11 @@ class _DetailedReportPageState extends State<DetailedReportPage> {
               const SizedBox(width: 12),
               ElevatedButton(
                 onPressed: () {
-                  // save/export action (placeholder)
                   showDialog(context: context, builder: (_) => AlertDialog(title: const Text('Saved'), content: const Text('Report prepared (in-memory).'), actions: [TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('OK'))]));
                 },
                 child: const Text('Save/Export'),
               )
-            ])
+            ]),
           ]),
         )
       ]),

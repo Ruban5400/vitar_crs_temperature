@@ -20,14 +20,8 @@ class MeterEntry {
   });
 
   factory MeterEntry.fromJson(Map<String, dynamic> json) {
-    print(json);
     return MeterEntry(
-      // 💡 FIX: Safely cast the 'id' field, defaulting to 0 if null.
-      // The id column name is guaranteed to be 'id'.
-      id: json['id'] as int? ?? 0,
-
-      // Ensure all other mappings are using the correct column names
-      // and safe null handling as confirmed in the last step:
+      id: (json['id'] as num?)?.toInt() ?? 0,
       lowerValue: (json['lower_value'] as num?)?.toDouble() ?? 0.0,
       upperValue: (json['upper_value'] as num?)?.toDouble() ?? 0.0,
       lowerCorrection: (json['lower_correction'] as num?)?.toDouble() ?? 0.0,
@@ -36,5 +30,10 @@ class MeterEntry {
       upperUncertainty: (json['upper_uncertainty'] as num?)?.toDouble() ?? 0.0,
       meterModel: json['meter_model'] as String? ?? 'N/A',
     );
+  }
+
+  @override
+  String toString() {
+    return 'MeterEntry(id:$id, lowerValue:$lowerValue, upperValue:$upperValue, lowerCorr:$lowerCorrection, upperCorr:$upperCorrection)';
   }
 }

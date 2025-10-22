@@ -14,7 +14,7 @@ class CalibrationBasicData {
   String relativeHumidityMin = '';
   String thermohygrometer = '';
   String refMethod = '';
-  String calibratedAt = ''; // 'Lab' or 'Site'
+  String calibratedAt = '';
   String remark = '';
   String instrumentConditionReceived = '';
   String instrumentConditionReturned = '';
@@ -22,36 +22,15 @@ class CalibrationBasicData {
 
   Map<String, dynamic> toMap() => {
     'certificateNo': certificateNo,
-    'instrument': instrument,
-    'make': make,
-    'model': model,
     'serialNo': serialNo,
-    'customerName': customerName,
-    'cmrNo': cmrNo,
-    'dateReceived': dateReceived,
-    'dateCalibrated': dateCalibrated,
-    'ambientTempMax': ambientTempMax,
-    'ambientTempMin': ambientTempMin,
-    'relativeHumidityMax': relativeHumidityMax,
-    'relativeHumidityMin': relativeHumidityMin,
-    'thermohygrometer': thermohygrometer,
-    'refMethod': refMethod,
-    'calibratedAt': calibratedAt,
-    'remark': remark,
-    'instrumentConditionReceived': instrumentConditionReceived,
-    'instrumentConditionReturned': instrumentConditionReturned,
-    'resolution': resolution,
   };
-
-  @override
-  String toString() => toMap().toString();
 }
 
 class CalibrationPoint {
   String setting = '';
-  final List<String> refReadings = List.generate(6, (_) => '');
-  final List<String> testReadings = List.generate(6, (_) => '');
-  final Map<String, String> rightInfo = {
+  List<String> refReadings = List.generate(6, (_) => '');
+  List<String> testReadings = List.generate(6, (_) => '');
+  Map<String, String> rightInfo = {
     'Ref. Ther.': '',
     'Ref. Ind.': '',
     'Ref. Wire': '',
@@ -59,15 +38,16 @@ class CalibrationPoint {
     'Test Wire': '',
     'Bath': '',
     'Immer.': '',
+    'Meter Corr.': '',
   };
+
+  // new: computed correction per visible row (same value repeated for 6 rows)
+  List<String> meterCorrPerRow = List.generate(6, (_) => '');
 
   Map<String, dynamic> toMap() => {
     'setting': setting,
-    'ref': List.from(refReadings),
-    'test': List.from(testReadings),
-    'right': Map.from(rightInfo),
+    'refReadings': refReadings,
+    'testReadings': testReadings,
+    'rightInfo': rightInfo,
   };
-
-  @override
-  String toString() => toMap().toString();
 }

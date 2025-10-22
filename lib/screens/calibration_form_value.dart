@@ -84,116 +84,66 @@ class CalibrationFormPage extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 12),
-
-              // ElevatedButton(
-              //   onPressed: () {
-              //     Navigator.push(context, MaterialPageRoute(builder: (_) => const DetailedReportPage()));
-              //   },
-              //   child: const Padding(padding: EdgeInsets.symmetric(vertical: 12.0, horizontal: 8.0), child: Text('Continue to Summary')),
-              // )
-              // directly passing values without calculation
+              // 'reference reading along with the mean'
               // ElevatedButton(
               //   onPressed: () async {
-              //     // show loader while fetching
-              //     showDialog(
-              //       context: context,
-              //       builder: (_) => const Center(child: CircularProgressIndicator()),
-              //       barrierDismissible: false,
-              //     );
-              //
-              //     try {
-              //       // Example: fetch via provider/service - adjust to your code
-              //       final rows = await Provider.of<MeterProvider>(context, listen: false).fetchAll();
-              //       // close loader
-              //       Navigator.of(context).pop();
-              //       // navigate and pass the rows
-              //       Navigator.push(
-              //         context,
-              //         MaterialPageRoute(builder: (_) => DetailedReportPage(meterEntries: rows)),
-              //       );
-              //     } catch (e) {
-              //       Navigator.of(context).pop();
-              //       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to load meter rows: $e')));
-              //     }
-              //   },
-              //   child: const Text('Continue to Calculation'),
-              // )
-              // cal page with 'reference val and mean of them'
-              ElevatedButton(
-                onPressed: () async {
-                  final provider = Provider.of<CalibrationProvider>(
-                    context,
-                    listen: false,
-                  );
-
-                  // 1) compute meter corrections from the 6 ref readings per cal point
-                  provider.computeAndStoreMeterCorrections();
-
-                  // 2) (optional) If you also want to update Supabase records (see next section),
-                  //    you can call your service here.
-
-                  // 3) if you have a MeterProvider or Supabase fetch, get the table rows to pass to report
-                  final rows = Provider.of<MeterProvider>(
-                    context,
-                    listen: false,
-                  ).rows; // or fetchAll()
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => DetailedReportPage(meterEntries: rows),
-                    ),
-                  );
-                },
-                child: const Text('Continue to Calculation'),
-              ),
-
-              //
-              //
-              // ElevatedButton(
-              //   onPressed: () async {
-              //     final meterProv = Provider.of<MeterProvider>(
-              //       context,
-              //       listen: false,
-              //     ); // or your service
-              //     final calProv = Provider.of<CalibrationProvider>(
+              //     final provider = Provider.of<CalibrationProvider>(
               //       context,
               //       listen: false,
               //     );
               //
-              //     // show loader
-              //     showDialog(
-              //       context: context,
-              //       barrierDismissible: false,
-              //       builder: (_) =>
-              //           const Center(child: CircularProgressIndicator()),
+              //
+              //     // 1) compute meter corrections from the 6 ref readings per cal point
+              //     provider.computeAndStoreMeterCorrections();
+              //
+              //     // 2) (optional) If you also want to update Supabase records (see next section),
+              //     //    you can call your service here.
+              //
+              //     // 3) if you have a MeterProvider or Supabase fetch, get the table rows to pass to report
+              //     final rows = Provider.of<MeterProvider>(
+              //       context,
+              //       listen: false,
+              //     ).rows; // or fetchAll()
+              //     Navigator.push(
+              //       context,
+              //       MaterialPageRoute(
+              //         builder: (_) => DetailedReportPage(meterEntries: rows),
+              //       ),
               //     );
               //
-              //     try {
-              //       // ensure meter table is loaded
-              //       final table = await meterProv
-              //           .fetchAll(); // returns List<MeterEntry>
               //
-              //       // compute and store meter corrections into provider.calPoints[].rightInfo['Meter Corr.']
-              //       calProv.computeAndStoreMeterCorrectionsFromTable(table);
-              //
-              //       Navigator.of(context).pop(); // remove loader
-              //
-              //       // now navigate and pass table if you still need it in the report (you can pick either)
-              //       Navigator.push(
-              //         context,
-              //         MaterialPageRoute(
-              //           builder: (_) => DetailedReportPage(meterEntries: table),
-              //         ),
-              //       );
-              //     } catch (e) {
-              //       Navigator.of(context).pop();
-              //       ScaffoldMessenger.of(
-              //         context,
-              //       ).showSnackBar(SnackBar(content: Text('Failed: $e')));
-              //     }
               //   },
               //   child: const Text('Continue to Calculation'),
               // ),
+              ElevatedButton(
+                onPressed: () async {
+                  final calProv = Provider.of<CalibrationProvider>(context, listen: false);
+                  final meterProv = Provider.of<MeterProvider>(context, listen: false);
+
+                  // loader
+                  showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
+                  try {
+                    // 1) compute averages in rightInfo['Meter Corr.'] (keeps refReadings intact)
+                    calProv.computeAndStoreMeterCorrections();
+
+                    // 2) ensure meter table is loaded (from Supabase or sample)
+                    final rows = await meterProv.fetchAll();
+
+                    // 3) compute interpolated meter corrections and write into meterCorrPerRow
+                    calProv.calculateMeterCorrections(rows);
+
+                    Navigator.of(context).pop(); // remove loader
+
+                    // 4) navigate to report (pass rows for reference)
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => DetailedReportPage(meterEntries: rows)));
+                  } catch (e, st) {
+                    Navigator.of(context).pop();
+                    debugPrint('Error preparing calculations: $e\n$st');
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to prepare calculations: $e')));
+                  }
+                },
+                child: const Padding(padding: EdgeInsets.symmetric(vertical: 12.0, horizontal: 8.0), child: Text('Continue to Calculation')),
+              )
             ],
           ),
         ),
