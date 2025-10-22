@@ -119,6 +119,10 @@ class CalibrationFormPage extends StatelessWidget {
                 onPressed: () async {
                   final calProv = Provider.of<CalibrationProvider>(context, listen: false);
                   final meterProv = Provider.of<MeterProvider>(context, listen: false);
+                  for (var i = 0; i < calProv.calPoints.length; i++) {
+                    debugPrint('--- CalPoint #${i+1} refReadings: ${calProv.calPoints[i].refReadings}');
+                    debugPrint('--- CalPoint #${i+1} testReadings: ${calProv.calPoints[i].testReadings}');
+                  }
 
                   // loader
                   showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
