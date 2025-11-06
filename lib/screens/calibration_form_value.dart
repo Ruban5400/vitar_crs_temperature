@@ -85,51 +85,6 @@ class CalibrationFormPage extends StatelessWidget {
               ),
               const SizedBox(height: 12),
 
-              // used default -25 as the setting value
-              // ElevatedButton(
-              //   onPressed: () async {
-              //     final calProv = Provider.of<CalibrationProvider>(context, listen: false);
-              //     final meterProv = Provider.of<MeterProvider>(context, listen: false);
-              //     for (var i = 0; i < calProv.calPoints.length; i++) {
-              //       debugPrint('--- CalPoint #${i+1} refReadings: ${calProv.calPoints[i].refReadings}');
-              //       debugPrint('--- CalPoint #${i+1} testReadings: ${calProv.calPoints[i].testReadings}');
-              //     }
-              //     final calibrationProvider = CalibrationProvider();
-              //     final settingValue = calProv.calPoints[0].setting;
-              //     calibrationProvider.updateCalPointSetting(0, settingValue);
-              //
-              //     // calibrationProvider.updateCalPointSetting(0, '-25');
-              //
-              //     List<List<double>> table = calibrationProvider.generateTableForCalPoint(0);
-              //
-              //     for (var row in table) {
-              //       print('5400 =-=-=>> ${row.map((e) => e.toStringAsFixed(4)).join('\t')}');
-              //     }
-              //
-              //     // loader
-              //     showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
-              //     try {
-              //       // 1) compute averages in rightInfo['Meter Corr.'] (keeps refReadings intact)
-              //       calProv.computeAndStoreMeterCorrections();
-              //
-              //       // 2) ensure meter table is loaded (from Supabase or sample)
-              //       final rows = await meterProv.fetchAll();
-              //
-              //       // 3) compute interpolated meter corrections and write into meterCorrPerRow
-              //       calProv.calculateMeterCorrections(rows);
-              //
-              //       Navigator.of(context).pop(); // remove loader
-              //
-              //       // 4) navigate to report (pass rows for reference)
-              //       Navigator.push(context, MaterialPageRoute(builder: (_) => DetailedReportPage(meterEntries: rows)));
-              //     } catch (e, st) {
-              //       Navigator.of(context).pop();
-              //       debugPrint('Error preparing calculations: $e\n$st');
-              //       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to prepare calculations: $e')));
-              //     }
-              //   },
-              //   child: const Padding(padding: EdgeInsets.symmetric(vertical: 12.0, horizontal: 8.0), child: Text('Continue to Calculation')),
-              // )
               ElevatedButton(
                 onPressed: () async {
                   final calProv = Provider.of<CalibrationProvider>(context, listen: false);
@@ -198,189 +153,6 @@ class CalibrationFormPage extends StatelessWidget {
     );
   }
 }
-
-// class CalPointCard extends StatelessWidget {
-//   final int index;
-//   const CalPointCard({super.key, required this.index});
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     final provider = Provider.of<CalibrationProvider>(context);
-//     final data = provider.calPoints[index];
-//
-//     return Container(
-//       padding: const EdgeInsets.all(8),
-//       decoration: BoxDecoration(border: Border.all(color: Colors.black54)),
-//       child: Column(
-//         crossAxisAlignment: CrossAxisAlignment.stretch,
-//         children: [
-//           Row(
-//             mainAxisAlignment: MainAxisAlignment.spaceBetween,
-//             children: [
-//               Text(
-//                 'Cal. Point : ${index + 1}',
-//                 style: const TextStyle(fontWeight: FontWeight.w600),
-//               ),
-//               SizedBox(
-//                 width: 110,
-//                 child: Column(
-//                   crossAxisAlignment: CrossAxisAlignment.end,
-//                   children: [
-//                     const Text(
-//                       'Setting',
-//                       style: TextStyle(fontSize: 12, color: Colors.black54),
-//                     ),
-//                     TextFormField(
-//                       initialValue: data.setting,
-//                       textAlign: TextAlign.right,
-//                       decoration: const InputDecoration(
-//                         isDense: true,
-//                         contentPadding: EdgeInsets.symmetric(vertical: 6),
-//                         border: InputBorder.none,
-//                       ),
-//                       onChanged: (v) =>
-//                           provider.updateCalPointSetting(index, v),
-//                     ),
-//                   ],
-//                 ),
-//               ),
-//             ],
-//           ),
-//           const SizedBox(height: 6),
-//
-//           Row(
-//             crossAxisAlignment: CrossAxisAlignment.start,
-//             children: [
-//               // left: ref/test table
-//               Expanded(
-//                 flex: 2,
-//                 child: Container(
-//                   padding: const EdgeInsets.all(6),
-//                   decoration: BoxDecoration(
-//                     border: Border.all(color: Colors.black26),
-//                   ),
-//                   child: Column(
-//                     children: [
-//                       Row(
-//                         children: const [
-//                           Expanded(
-//                             child: Center(
-//                               child: Text(
-//                                 'Ref.\\nReading',
-//                                 textAlign: TextAlign.center,
-//                               ),
-//                             ),
-//                           ),
-//                           Expanded(
-//                             child: Center(
-//                               child: Text(
-//                                 'Test\\nReading',
-//                                 textAlign: TextAlign.center,
-//                               ),
-//                             ),
-//                           ),
-//                         ],
-//                       ),
-//                       const Divider(height: 8, thickness: 1),
-//                       ...List.generate(6, (r) {
-//                         return Padding(
-//                           padding: const EdgeInsets.symmetric(vertical: 2.0),
-//                           child: Row(
-//                             children: [
-//                               // ref
-//                               Expanded(
-//                                 child: TextFormField(
-//                                   initialValue: data.refReadings[r],
-//                                   textAlign: TextAlign.center,
-//                                   style: const TextStyle(
-//                                     color: Colors.red,
-//                                     fontWeight: FontWeight.w600,
-//                                   ),
-//                                   decoration: const InputDecoration(
-//                                     isDense: true,
-//                                     contentPadding: EdgeInsets.symmetric(
-//                                       vertical: 6,
-//                                     ),
-//                                     border: InputBorder.none,
-//                                   ),
-//                                   onChanged: (v) =>
-//                                       provider.updateRefReading(index, r, v),
-//                                 ),
-//                               ),
-//                               // test
-//                               Expanded(
-//                                 child: TextFormField(
-//                                   initialValue: data.testReadings[r],
-//                                   textAlign: TextAlign.center,
-//                                   style: const TextStyle(
-//                                     color: Colors.red,
-//                                     fontWeight: FontWeight.w600,
-//                                   ),
-//                                   decoration: const InputDecoration(
-//                                     isDense: true,
-//                                     contentPadding: EdgeInsets.symmetric(
-//                                       vertical: 6,
-//                                     ),
-//                                     border: InputBorder.none,
-//                                   ),
-//                                   onChanged: (v) =>
-//                                       provider.updateTestReading(index, r, v),
-//                                 ),
-//                               ),
-//                             ],
-//                           ),
-//                         );
-//                       }),
-//                     ],
-//                   ),
-//                 ),
-//               ),
-//
-//               const SizedBox(width: 8),
-//               // right: reference info column
-//               Expanded(
-//                 flex: 1,
-//                 child: Column(
-//                   crossAxisAlignment: CrossAxisAlignment.start,
-//                   children: [
-//                     for (final key in data.rightInfo.keys)
-//                       Padding(
-//                         padding: const EdgeInsets.symmetric(vertical: 2.0),
-//                         child: Row(
-//                           crossAxisAlignment: CrossAxisAlignment.start,
-//                           children: [
-//                             Expanded(flex: 3, child: Text(key)),
-//                             Expanded(
-//                               flex: 4,
-//                               child: TextFormField(
-//                                 initialValue: data.rightInfo[key],
-//                                 style: const TextStyle(
-//                                   fontWeight: FontWeight.w600,
-//                                 ),
-//                                 decoration: const InputDecoration(
-//                                   isDense: true,
-//                                   contentPadding: EdgeInsets.symmetric(
-//                                     vertical: 6,
-//                                   ),
-//                                   border: InputBorder.none,
-//                                 ),
-//                                 onChanged: (v) => provider
-//                                     .updateCalPointRightInfo(index, key, v),
-//                               ),
-//                             ),
-//                           ],
-//                         ),
-//                       ),
-//                   ],
-//                 ),
-//               ),
-//             ],
-//           ),
-//         ],
-//       ),
-//     );
-//   }
-// }
 
 class CalPointCard extends StatelessWidget {
   final int index;
@@ -541,7 +313,7 @@ class CalPointCard extends StatelessWidget {
                 style: const TextStyle(fontWeight: FontWeight.w600),
               ),
               SizedBox(
-                width: 110,
+                width: 75,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
@@ -549,15 +321,23 @@ class CalPointCard extends StatelessWidget {
                       'Setting',
                       style: TextStyle(fontSize: 12, color: Colors.black54),
                     ),
-                    TextFormField(
-                      initialValue: data.setting,
-                      textAlign: TextAlign.right,
-                      decoration: const InputDecoration(
-                        isDense: true,
-                        contentPadding: EdgeInsets.symmetric(vertical: 6),
-                        border: InputBorder.none,
+                    Container(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.green),
+                        borderRadius: BorderRadius.circular(4),
+                        color: Colors.white70,
                       ),
-                      onChanged: (v) => provider.updateCalPointSetting(index, v),
+                      child: TextFormField(
+                        initialValue: data.setting,
+                        textAlign: TextAlign.center,
+                        decoration: const InputDecoration(
+                          isDense: true,
+                          contentPadding: EdgeInsets.symmetric(vertical: 6),
+                          border: InputBorder.none,
+                        ),
+                        onChanged: (v) => provider.updateCalPointSetting(index, v),
+                      ),
                     ),
                   ],
                 ),
@@ -606,40 +386,57 @@ class CalPointCard extends StatelessWidget {
                             children: [
                               // ref
                               Expanded(
-                                child: TextFormField(
-                                  initialValue: data.refReadings[r],
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    color: Colors.red,
-                                    fontWeight: FontWeight.w600,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(vertical: 4),
+                                  decoration: BoxDecoration(
+                                    border: Border.all(color: Colors.green),
+                                    borderRadius: BorderRadius.circular(4),
+                                    color: Colors.white70,
                                   ),
-                                  decoration: const InputDecoration(
-                                    isDense: true,
-                                    contentPadding: EdgeInsets.symmetric(
-                                      vertical: 6,
+                                  child: TextFormField(
+                                    initialValue: data.refReadings[r],
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      color: Colors.red,
+                                      fontWeight: FontWeight.w600,
                                     ),
-                                    border: InputBorder.none,
+                                    decoration: const InputDecoration(
+                                      isDense: true,
+                                      contentPadding: EdgeInsets.symmetric(
+                                        vertical: 6,
+                                      ),
+                                      border: InputBorder.none,
+                                    ),
+                                    onChanged: (v) => provider.updateRefReading(index, r, v),
                                   ),
-                                  onChanged: (v) => provider.updateRefReading(index, r, v),
                                 ),
                               ),
                               // test
+                              SizedBox(width: 10),
                               Expanded(
-                                child: TextFormField(
-                                  initialValue: data.testReadings[r],
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    color: Colors.red,
-                                    fontWeight: FontWeight.w600,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(vertical: 4),
+                                  decoration: BoxDecoration(
+                                    border: Border.all(color: Colors.green),
+                                    borderRadius: BorderRadius.circular(4),
+                                    color: Colors.white70,
                                   ),
-                                  decoration: const InputDecoration(
-                                    isDense: true,
-                                    contentPadding: EdgeInsets.symmetric(
-                                      vertical: 6,
+                                  child: TextFormField(
+                                    initialValue: data.testReadings[r],
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      color: Colors.red,
+                                      fontWeight: FontWeight.w600,
                                     ),
-                                    border: InputBorder.none,
+                                    decoration: const InputDecoration(
+                                      isDense: true,
+                                      contentPadding: EdgeInsets.symmetric(
+                                        vertical: 6,
+                                      ),
+                                      border: InputBorder.none,
+                                    ),
+                                    onChanged: (v) => provider.updateTestReading(index, r, v),
                                   ),
-                                  onChanged: (v) => provider.updateTestReading(index, r, v),
                                 ),
                               ),
                             ],
@@ -666,19 +463,28 @@ class CalPointCard extends StatelessWidget {
                             Expanded(flex: 3, child: Text(key)),
                             Expanded(
                               flex: 4,
-                              child: TextFormField(
-                                initialValue: data.rightInfo[key],
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(vertical: 4),
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: Colors.green),
+                                  borderRadius: BorderRadius.circular(4),
+                                  color: Colors.white70,
                                 ),
-                                decoration: const InputDecoration(
-                                  isDense: true,
-                                  contentPadding: EdgeInsets.symmetric(
-                                    vertical: 6,
+                                child: TextFormField(
+                                  initialValue: data.rightInfo[key],
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
                                   ),
-                                  border: InputBorder.none,
+                                  textAlign: TextAlign.center,
+                                  decoration: const InputDecoration(
+                                    isDense: true,
+                                    contentPadding: EdgeInsets.symmetric(
+                                      vertical: 6,
+                                    ),
+                                    border: InputBorder.none,
+                                  ),
+                                  onChanged: (v) => provider.updateCalPointRightInfo(index, key, v),
                                 ),
-                                onChanged: (v) => provider.updateCalPointRightInfo(index, key, v),
                               ),
                             ),
                           ],
