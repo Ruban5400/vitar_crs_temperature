@@ -4,35 +4,51 @@ import '../providers/calibration_provider.dart';
 
 class EditableDataField extends StatefulWidget {
   final String fieldName;
-  final String initialValue;
-  final bool readOnly;
-  const EditableDataField({super.key, required this.fieldName, this.initialValue = '', this.readOnly = false});
+  final String? defaultValue; // new optional default
+
+  const EditableDataField({
+    Key? key,
+    required this.fieldName,
+    this.defaultValue,
+  }) : super(key: key);
 
   @override
-  State<EditableDataField> createState() => _EditableDataFieldState();
+  _EditableDataFieldState createState() => _EditableDataFieldState();
 }
 
 class _EditableDataFieldState extends State<EditableDataField> {
   late final TextEditingController _controller;
+  bool _initialized = false;
 
   @override
   void initState() {
     super.initState();
-    _controller = TextEditingController(text: widget.initialValue);
+    _controller = TextEditingController();
+    // We'll initialize controller in didChangeDependencies so provider is available
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // keep in sync with provider value
-    final provider = Provider.of<CalibrationProvider>(context, listen: false);
-    final current = _readValue(provider);
-    if (current != _controller.text) _controller.text = current;
+    if (_initialized) return;
+    final prov = Provider.of<CalibrationProvider>(context, listen: false);
+
+    // get current value from provider for this field (if any)
+    String current = _readProviderValue(prov, widget.fieldName) ?? '';
+
+    if (current.isEmpty && (widget.defaultValue != null && widget.defaultValue!.isNotEmpty)) {
+      // if provider empty, set provider to defaultValue so it persists as fixed value
+      prov.updateField(widget.fieldName, widget.defaultValue!);
+      current = widget.defaultValue!;
+    }
+
+    _controller.text = current;
+    _initialized = true;
   }
 
-  String _readValue(CalibrationProvider provider) {
-    final d = provider.data;
-    switch (widget.fieldName) {
+  String? _readProviderValue(CalibrationProvider prov, String fieldName) {
+    final d = prov.data;
+    switch (fieldName) {
       case 'CertificateNo':
         return d.certificateNo;
       case 'Instrument':
@@ -70,30 +86,33 @@ class _EditableDataFieldState extends State<EditableDataField> {
       case 'Resolution':
         return d.resolution;
       default:
-        return '';
+        return null;
     }
   }
 
-  void _onChanged(String v) {
-    if (!widget.readOnly) Provider.of<CalibrationProvider>(context, listen: false).updateField(widget.fieldName, v);
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _onChanged(String val) {
+    final prov = Provider.of<CalibrationProvider>(context, listen: false);
+    prov.updateField(widget.fieldName, val);
   }
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<CalibrationProvider>(builder: (context, provider, _) {
-      final providerVal = _readValue(provider);
-      if (_controller.text != providerVal) _controller.text = providerVal;
-      return TextFormField(
-        controller: _controller,
-        readOnly: widget.readOnly,
-        decoration: const InputDecoration(
-          isDense: true,
-          contentPadding: EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-          enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.grey, width: 0.8)),
-          focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.teal, width: 1.6)),
-        ),
-        onChanged: _onChanged,
-      );
-    });
+    return TextField(
+      controller: _controller,
+      onChanged: _onChanged,
+      decoration: InputDecoration(
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(4)),
+        // show the defaultValue as a hint only when controller is empty:
+        hintText: _controller.text.isEmpty ? widget.defaultValue : null,
+      ),
+    );
   }
 }
