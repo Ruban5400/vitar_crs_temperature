@@ -11,7 +11,6 @@ class CalibrationProvider extends ChangeNotifier {
   final CalibrationBasicData data = CalibrationBasicData();
   final List<CalibrationPoint> calPoints = List.generate(8, (_) => CalibrationPoint());
 
-  // -------------------------
   void updateField(String fieldName, String value) {
     switch (fieldName) {
       case 'CertificateNo':
@@ -72,6 +71,49 @@ class CalibrationProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  String? getFieldValue(String fieldName) {
+    switch (fieldName) {
+      case 'CertificateNo':
+        return data.certificateNo;
+      case 'Instrument':
+        return data.instrument;
+      case 'Make':
+        return data.make;
+      case 'Model':
+        return data.model;
+      case 'SerialNo':
+        return data.serialNo;
+      case 'CustomerName':
+        return data.customerName;
+      case 'CMRNo':
+        return data.cmrNo;
+      case 'DateReceived':
+        return data.dateReceived;
+      case 'DateCalibrated':
+        return data.dateCalibrated;
+      case 'AmbientTempMax':
+        return data.ambientTempMax;
+      case 'AmbientTempMin':
+        return data.ambientTempMin;
+      case 'RHMax':
+        return data.relativeHumidityMax;
+      case 'RHMin':
+        return data.relativeHumidityMin;
+      case 'Thermohygrometer':
+        return data.thermohygrometer;
+      case 'RefMethod':
+        return data.refMethod;
+      case 'CalibratedAt':
+        return data.calibratedAt;
+      case 'Remark':
+        return data.remark;
+      case 'Resolution':
+        return data.resolution;
+      default:
+        return null;
+    }
+  }
+
   void updateCondition(String which, String value) {
     if (which == 'Received') {
       data.instrumentConditionReceived = value;
@@ -113,7 +155,6 @@ class CalibrationProvider extends ChangeNotifier {
   }
 
   void resetAll() {
-    debugPrint('Resetting calibration provider (resetAll)');
     data.clear();
 
     for (var p in calPoints) {
@@ -413,48 +454,7 @@ class CalibrationProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  String? getFieldValue(String fieldName) {
-    switch (fieldName) {
-      case 'CertificateNo':
-        return data.certificateNo;
-      case 'Instrument':
-        return data.instrument;
-      case 'Make':
-        return data.make;
-      case 'Model':
-        return data.model;
-      case 'SerialNo':
-        return data.serialNo;
-      case 'CustomerName':
-        return data.customerName;
-      case 'CMRNo':
-        return data.cmrNo;
-      case 'DateReceived':
-        return data.dateReceived;
-      case 'DateCalibrated':
-        return data.dateCalibrated;
-      case 'AmbientTempMax':
-        return data.ambientTempMax;
-      case 'AmbientTempMin':
-        return data.ambientTempMin;
-      case 'RHMax':
-        return data.relativeHumidityMax;
-      case 'RHMin':
-        return data.relativeHumidityMin;
-      case 'Thermohygrometer':
-        return data.thermohygrometer;
-      case 'RefMethod':
-        return data.refMethod;
-      case 'CalibratedAt':
-        return data.calibratedAt;
-      case 'Remark':
-        return data.remark;
-      case 'Resolution':
-        return data.resolution;
-      default:
-        return null;
-    }
-  }
+
 
 
 }

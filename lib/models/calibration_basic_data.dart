@@ -1,7 +1,3 @@
-
-enum CalibratedAt { lab, site }
-
-// calibration_basic_data.dart
 class CalibrationBasicData {
   String certificateNo = '';
   String instrument = '';
@@ -86,7 +82,6 @@ class CalibrationPoint {
     'Test Wire': '',
     'Bath': '',
     'Immer.': '',
-    'Meter Corr.': '',
   };
 
   // new: computed correction per visible row (same value repeated for 6 rows)
