@@ -1,3 +1,7 @@
+
+enum CalibratedAt { lab, site }
+
+// calibration_basic_data.dart
 class CalibrationBasicData {
   String certificateNo = '';
   String instrument = '';
@@ -20,11 +24,55 @@ class CalibrationBasicData {
   String instrumentConditionReturned = '';
   String resolution = '';
 
+  // COMPLETE mapping so exportAll() is meaningful
   Map<String, dynamic> toMap() => {
     'certificateNo': certificateNo,
+    'instrument': instrument,
+    'make': make,
+    'model': model,
     'serialNo': serialNo,
+    'customerName': customerName,
+    'cmrNo': cmrNo,
+    'dateReceived': dateReceived,
+    'dateCalibrated': dateCalibrated,
+    'ambientTempMax': ambientTempMax,
+    'ambientTempMin': ambientTempMin,
+    'relativeHumidityMax': relativeHumidityMax,
+    'relativeHumidityMin': relativeHumidityMin,
+    'thermohygrometer': thermohygrometer,
+    'refMethod': refMethod,
+    'calibratedAt': calibratedAt,
+    'remark': remark,
+    'instrumentConditionReceived': instrumentConditionReceived,
+    'instrumentConditionReturned': instrumentConditionReturned,
+    'resolution': resolution,
   };
+
+  // clear helper used by provider.resetAll()
+  void clear() {
+    certificateNo = '';
+    instrument = '';
+    make = '';
+    model = '';
+    serialNo = '';
+    customerName = '';
+    cmrNo = '';
+    dateReceived = '';
+    dateCalibrated = '';
+    ambientTempMax = '';
+    ambientTempMin = '';
+    relativeHumidityMax = '';
+    relativeHumidityMin = '';
+    thermohygrometer = '';
+    refMethod = '';
+    calibratedAt = '';
+    remark = '';
+    instrumentConditionReceived = '';
+    instrumentConditionReturned = '';
+    resolution = '';
+  }
 }
+
 
 class CalibrationPoint {
   String setting = '';
