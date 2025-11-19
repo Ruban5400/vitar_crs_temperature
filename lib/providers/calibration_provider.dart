@@ -2,6 +2,7 @@
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
+import '../main.dart';
 import '../models/address.dart';
 import '../models/calibration_basic_data.dart';
 import '../models/meter_entry.dart';
@@ -200,11 +201,11 @@ class CalibrationProvider extends ChangeNotifier {
       // Use _safeParseDouble to tolerate '', null and spaces
       final parsed = cp.refReadings.map((s) => _safeParseDouble(s)).toList();
       final avg = averageDoubleList(parsed);
-      if (avg != null) {
-        cp.rightInfo['Meter Corr.'] = avg.toStringAsFixed(8);
-      } else {
-        cp.rightInfo['Meter Corr.'] = '';
-      }
+      // if (avg != null) {
+      //   cp.rightInfo['Meter Corr.'] = avg.toStringAsFixed(8);
+      // } else {
+      //   cp.rightInfo['Meter Corr.'] = '';
+      // }
       results.add(avg);
     }
     notifyListeners();
@@ -454,6 +455,28 @@ class CalibrationProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Map<String, List<String>> masterOptions = {};
+
+  Future<void> loadMasterOptions() async {
+    final res = await supabase
+        .from('ref_master')
+        .select()
+        .order('value');
+
+    masterOptions.clear();
+
+    for (final row in res) {
+      final category = row['category'] as String;
+      final value = row['value'] as String;
+
+      if (!masterOptions.containsKey(category)) {
+        masterOptions[category] = [];
+      }
+      masterOptions[category]!.add(value);
+    }
+
+    notifyListeners();
+  }
 
 
 

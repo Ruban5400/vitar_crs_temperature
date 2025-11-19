@@ -10,7 +10,7 @@ import 'models/meter_entry.dart';
 
 void main() async {
   const supabaseUrl =
-      'http://supabasekong-uggsw0oswso0o4w4wkogos0g.72.60.206.230.sslip.io';
+      'https://supabase.ezeal.in/';
   const supabaseAnonKey =
       'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJzdXBhYmFzZSIsImlhdCI6MTc2MDUwODQ4MCwiZXhwIjo0OTE2MTgyMDgwLCJyb2xlIjoiYW5vbiJ9.wrF1MVhHEBLuU_7UYG1E3eYQtGGqKV6I4XIOFQUWViw';
 
@@ -19,6 +19,8 @@ void main() async {
 }
 
 final supabase = Supabase.instance.client;
+
+
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});

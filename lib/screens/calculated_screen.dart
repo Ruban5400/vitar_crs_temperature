@@ -182,7 +182,7 @@ class _DetailedReportPageState extends State<DetailedReportPage> {
             // Actual Ref (your new column)
             final List<String> actualRefs = prov.computeThermCorrections(calIndex);
             String actualRefStr = '';
-            if (r < actualRefs.length) actualRefStr = actualRefs[r];
+            if (r < actualRefs.length) actualRefStr = actualRefs[3];
 
             // Test Reading (user-entered) - show raw string if non-numeric
             final rawTest = (r < cal.testReadings.length) ? cal.testReadings[r].trim() : '';
