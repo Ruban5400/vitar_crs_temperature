@@ -1,17 +1,25 @@
-// new code worked on 07/11/25
-import 'dart:math';
 
+import 'dart:math';
 import 'package:flutter/foundation.dart';
-import '../main.dart';
-import '../models/address.dart';
+
+import '../main.dart'; // if you use supabase client from main.dart
 import '../models/calibration_basic_data.dart';
 import '../models/meter_entry.dart';
+import '../models/address.dart';
 import '../models/undefined_models.dart';
+
+// lib/providers/calibration_provider.dart
+
+import 'dart:math';
+import 'package:flutter/foundation.dart'; // debugPrint
+import 'package:flutter/material.dart';
+
 
 class CalibrationProvider extends ChangeNotifier {
   final CalibrationBasicData data = CalibrationBasicData();
   final List<CalibrationPoint> calPoints = List.generate(8, (_) => CalibrationPoint());
 
+  // ---------------- core setters/getters (unchanged) ----------------
   void updateField(String fieldName, String value) {
     switch (fieldName) {
       case 'CertificateNo':
@@ -160,14 +168,11 @@ class CalibrationProvider extends ChangeNotifier {
 
     for (var p in calPoints) {
       p.setting = '';
-      // ensure lists exist and have length 6
       p.refReadings = List.generate(6, (_) => '');
       p.testReadings = List.generate(6, (_) => '');
-      // clear rightInfo values but keep keys if needed
-      if (p.rightInfo.isNotEmpty) {
-        p.rightInfo.updateAll((key, value) => '');
-      }
+      if (p.rightInfo.isNotEmpty) p.rightInfo.updateAll((k, v) => '');
       p.meterCorrPerRow = List.generate(6, (_) => '');
+      p.actualRefPerRow = List.generate(6, (_) => '');
     }
     notifyListeners();
   }
@@ -177,8 +182,7 @@ class CalibrationProvider extends ChangeNotifier {
     'calPoints': calPoints.map((c) => c.toMap()).toList(),
   };
 
-  // -------------------------
-  // Averaging logic (only computes average of refReadings; doesn't change them)
+  // ------------------------- helpers -------------------------
   double? _safeParseDouble(String? s) {
     if (s == null) return null;
     final cleaned = s.trim();
@@ -193,27 +197,19 @@ class CalibrationProvider extends ChangeNotifier {
     return sum / valid.length;
   }
 
-  /// compute & store ONLY averages into rightInfo['Meter Corr.'] (preserves refReadings)
   List<double?> computeAndStoreMeterCorrections() {
     final List<double?> results = [];
     for (var i = 0; i < calPoints.length; i++) {
       final cp = calPoints[i];
-      // Use _safeParseDouble to tolerate '', null and spaces
       final parsed = cp.refReadings.map((s) => _safeParseDouble(s)).toList();
       final avg = averageDoubleList(parsed);
-      // if (avg != null) {
-      //   cp.rightInfo['Meter Corr.'] = avg.toStringAsFixed(8);
-      // } else {
-      //   cp.rightInfo['Meter Corr.'] = '';
-      // }
       results.add(avg);
     }
     notifyListeners();
     return results;
   }
 
-  // -------------------------
-  // Meter table interpolation logic
+  // ------------------------- meter-table helpers (unchanged) -------------------------
   MeterEntry? _findSegmentForMean(double mean, List<MeterEntry> table) {
     if (table.isEmpty) return null;
     for (final row in table) {
@@ -221,7 +217,6 @@ class CalibrationProvider extends ChangeNotifier {
     }
     if (mean < table.first.lowerValue) return table.first;
     if (mean > table.last.upperValue) return table.last;
-    // fallback: choose nearest midpoint
     MeterEntry? best;
     double bestDiff = double.infinity;
     for (final r in table) {
@@ -247,27 +242,20 @@ class CalibrationProvider extends ChangeNotifier {
     return corr;
   }
 
-  /// Public: compute meter correction for each cal point using the meter table
-  /// and write the same computed correction into calPoint.meterCorrPerRow (all 6 rows).
   List<double?> calculateMeterCorrections(List<MeterEntry> meterTable) {
     final List<double?> results = [];
 
     for (var i = 0; i < calPoints.length; i++) {
       final cp = calPoints[i];
-
-      // parse reference readings safely using _safeParseDouble
       final parsed = cp.refReadings.map((s) => _safeParseDouble(s)).toList();
-
       final valid = parsed.where((x) => x != null).cast<double>().toList();
       if (valid.isEmpty) {
-        // nothing valid -> clear meterCorr entries
         cp.meterCorrPerRow = List.generate(6, (_) => '');
         results.add(null);
         continue;
       }
 
       final mean = valid.reduce((a, b) => a + b) / valid.length;
-
       final seg = _findSegmentForMean(mean, meterTable);
       if (seg == null) {
         cp.meterCorrPerRow = List.generate(6, (_) => '');
@@ -276,34 +264,29 @@ class CalibrationProvider extends ChangeNotifier {
       }
 
       final corr = _interpolateCorrection(mean, seg);
-      final corrStr = corr.toStringAsFixed(4); // format to 4 decimals
-
-      // fill same value for all 6 rows
+      final corrStr = corr.toStringAsFixed(4);
       cp.meterCorrPerRow = List.generate(6, (_) => corrStr);
-
       results.add(corr);
     }
+
 
     notifyListeners();
     return results;
   }
 
+  // ------------------------- reference table generation (unchanged) -------------------------
   List<List<double>> generateTableForCalPoint(int index) {
     final cp = calPoints[index];
     if (cp.setting.isEmpty) return [];
 
     int settingValue = int.tryParse(cp.setting) ?? 0;
+    SampleData sample = numericalReferenceData['ST-S6']!;
 
-    // Choose sample based on requirement
-    SampleData sample = numericalReferenceData['ST-S5']!;
-
-    // Step 1: Create 2nd column
     List<int> col2 = List.filled(7, 0);
-    col2[3] = settingValue; // middle row
+    col2[3] = settingValue;
     for (int i = 2; i >= 0; i--) col2[i] = col2[i + 1] - 1;
     for (int i = 4; i < 7; i++) col2[i] = col2[i - 1] + 1;
 
-    // Step 2: Calculate 1st column using the formula
     List<double> col1 = [];
     for (int i = 0; i < 7; i++) {
       double AL = col2[i].toDouble();
@@ -322,13 +305,11 @@ class CalibrationProvider extends ChangeNotifier {
       col1.add(value);
     }
 
-    // Step 3: 3rd and 4th columns are just col1 and col2 shifted
     List<double> col3 = col1.sublist(1);
     col3.add(0);
     List<int> col4 = col2.sublist(1);
     col4.add(0);
 
-    // Combine into 7x4 table
     List<List<double>> table = [];
     for (int i = 0; i < 7; i++) {
       table.add([col1[i], col2[i].toDouble(), col3[i], col4[i].toDouble()]);
@@ -336,7 +317,8 @@ class CalibrationProvider extends ChangeNotifier {
     return table;
   }
 
-  List<String> computeFinalInterpolated(int calIndex, List<double> colX, List<double> colY, List<double> colZ, List<double> colAA, List<double> colAB) {
+  List<String> computeFinalInterpolated(int calIndex, List<double> colX, List<double> colY,
+      List<double> colZ, List<double> colAA, List<double> colAB) {
     final List<String> result = List.generate(6, (_) => '');
     for (int r = 0; r < 6; r++) {
       try {
@@ -355,17 +337,20 @@ class CalibrationProvider extends ChangeNotifier {
     return result;
   }
 
-  List<String> computeThermCorrections(int calIndex) {
+  // ------------------------- therm interpolation (existing) -------------------------
+  List<String> computeTherCorrections(int calIndex) {
+    debugPrint('>>> computeTherCorrections called for calIndex=$calIndex');
     final cp = calPoints[calIndex];
-
-    // --- Step A: compute therm-corrected X values (safe parsing) ---
     final List<double> colX = List.filled(6, double.nan);
 
     for (int r = 0; r < 6; r++) {
       final refVal = (r < cp.refReadings.length) ? _safeParseDouble(cp.refReadings[r]) : null;
       final meterVal = (r < cp.meterCorrPerRow.length) ? _safeParseDouble(cp.meterCorrPerRow[r]) : null;
 
+      debugPrint('computeTherCorrections: calIndex=$calIndex row=$r refVal=$refVal meterVal=$meterVal');
+
       if (refVal == null || meterVal == null) {
+        debugPrint('  -> skipping row $r because ${refVal == null ? "refVal==null" : ""} ${meterVal == null ? "meterVal==null" : ""}');
         colX[r] = double.nan;
         continue;
       }
@@ -374,26 +359,21 @@ class CalibrationProvider extends ChangeNotifier {
       const double factorHigh = 100.0479;
       final thermCorr = (refVal < 100) ? (refVal / factorLow) : (refVal / factorHigh);
 
-      // SCALE to match the table units (your sample/output uses values ~90.x not 0.90x)
+      debugPrint('  -> thermCorr (scaled before *100) for row $r = $thermCorr (refVal=$refVal)');
       colX[r] = thermCorr * 100.0;
     }
 
-    // --- Step B: build the 7x4 reference table for this cal point ---
     final table = generateTableForCalPoint(calIndex);
     if (table.isEmpty) return List.generate(6, (_) => '');
 
-    // Helper: find segment index i such that x is between leftX and rightX
     int _findSegmentIndex(double x) {
       for (int i = 0; i < table.length; i++) {
-        // table row layout: [col1LeftX, col2LeftTemp, col3RightX, col4RightTemp]
-        final leftX = table[i][0] * 100.0;   // scale table Xs too
-        final rightX = table[i][2] * 100.0;  // scale table Xs too
-
+        final leftX = table[i][0] * 100.0;
+        final rightX = table[i][2] * 100.0;
         final minX = leftX <= rightX ? leftX : rightX;
         final maxX = leftX <= rightX ? rightX : leftX;
         if (x >= minX && x <= maxX) return i;
       }
-      // not contained: choose nearest segment by midpoint distance
       int best = 0;
       double bestDist = double.infinity;
       for (int i = 0; i < table.length; i++) {
@@ -409,7 +389,6 @@ class CalibrationProvider extends ChangeNotifier {
       return best;
     }
 
-    // --- Step C: per-row build interpolation inputs and compute final values ---
     final List<String> finalResults = List.generate(6, (_) => '');
     for (int r = 0; r < 6; r++) {
       final x = colX[r];
@@ -421,32 +400,153 @@ class CalibrationProvider extends ChangeNotifier {
       final segIdx = _findSegmentIndex(x);
       final seg = table[segIdx];
 
-      // seg: [leftX (col1), leftTemp (col2), rightX (col3), rightTemp (col4)]
-      final double z = seg[0] * 100.0;   // left X (scale)
-      final double y = seg[1];          // left temperature (e.g. -26)
-      final double aa = seg[2] * 100.0; // right X (scale)
-      final double ab = seg[3];         // right temperature (e.g. -25)
+      final double z = seg[0] * 100.0;
+      final double y = seg[1];
+      final double aa = seg[2] * 100.0;
+      final double ab = seg[3];
 
-      // interpolation formula ((AB - Z) / (AA - Y)) * (X - Y) + Z
       try {
         final interpolated = ((ab - z) / (aa - y)) * (x - y) + z;
-        finalResults[r] = interpolated.toStringAsFixed(4); // round to 4 decimals
+        finalResults[r] = interpolated.toStringAsFixed(4);
       } catch (_) {
         finalResults[r] = '';
       }
     }
 
-    debugPrint('computeThermCorrections => $finalResults');
+    debugPrint('computeTherCorrections => $finalResults');
     return finalResults;
   }
 
-  // for adding address from masters
-  // List<Address> addresses = [];
-  // void loadAddressesFromJson(List<Map<String, dynamic>> list) {
-  //   addresses = list.map((m) => Address.fromJson(m)).toList();
-  //   debugPrint('Loaded addresses: ${addresses.length}');
-  //   notifyListeners();
-  // }
+  // ------------------------- NEW: therm-corr extraction helper -------------------------
+  /// Return the therm-corrected *scaled* value (the C17-like value, e.g. 90.1828)
+  /// Preference order:
+  ///  1) check cp.rightInfo for common keys that may contain the therm-corr value
+  ///  2) fallback to computing (ref + meterCorr) and scaling by 100
+  // ------------------------- NEW: therm-corr extraction helper (FIXED) -------------------------
+  /// Return the therm-corrected value in the SAME UNIT as R (e.g. ~90.1828).
+  /// Preference order:
+  ///  1) check cp.rightInfo for common keys that may contain the therm-corr value
+  ///     - if value looks like 90.x, return it (already scaled)
+  ///     - if value looks like 0.90, return value * 100
+  ///  2) fallback to computing (ref + meterCorr)
+  double? _getThermCorrScaledForRow(CalibrationPoint cp, int rowIndex) {
+    final possibleKeys = [
+      'Ther. Corr.', 'Ther Corr', 'TherCorr',
+      'Ref. Ind.', 'Ref Ind.', 'RefInd', 'Ref Indicated'
+    ];
+
+    for (final k in possibleKeys) {
+      if (cp.rightInfo.containsKey(k)) {
+        final s = cp.rightInfo[k]!.trim();
+        if (s.isNotEmpty) {
+          final v = double.tryParse(s);
+          if (v != null) {
+            debugPrint('_getThermCorrScaledForRow: found rightInfo[$k]=$v for row=$rowIndex');
+            // if already in 90.x range (or >10), assume it's scaled and return as-is
+            if (v.abs() > 10.0) return v;
+            // otherwise it's likely normalized (0.90...) -> convert to 90.x
+            return v * 100.0;
+          }
+        }
+      }
+    }
+
+    // fallback: derive from ref + meterCorr (assume ref & meterCorr are already in same unit as R, e.g. 90.x)
+    if (rowIndex < cp.refReadings.length && rowIndex < cp.meterCorrPerRow.length) {
+      final refStr = cp.refReadings[rowIndex].trim();
+      final meterCorrStr = cp.meterCorrPerRow[rowIndex].trim();
+      final refVal = double.tryParse(refStr);
+      final meterCorrVal = double.tryParse(meterCorrStr);
+      debugPrint('_getThermCorrScaledForRow: fallback ref=$refVal meterCorr=$meterCorrVal for row=$rowIndex');
+      if (refVal != null && meterCorrVal != null) {
+        final refInd = refVal + meterCorrVal;
+        // IMPORTANT: do NOT multiply by 100 here — refInd should already be e.g. 90.1828
+        return refInd;
+      }
+    }
+
+    return null;
+  }
+
+  // ------------------------- NEW: compute final Actual Ref per cal-point (FIXED units) -------------------------
+  void computeActualRefsForCalPoint(int calIndex) {
+    if (calIndex < 0 || calIndex >= calPoints.length) return;
+    final cp = calPoints[calIndex];
+
+    // Build AL sequence (7 values): middle = setting, neighbours +/-1
+    final int settingValue = int.tryParse(cp.setting) ?? 0;
+    final List<int> al = List.filled(7, 0);
+    al[3] = settingValue;
+    for (int i = 2; i >= 0; i--) al[i] = al[i + 1] - 1;
+    for (int i = 4; i < 7; i++) al[i] = al[i - 1] + 1;
+
+    // Choose sample and R (R is in same units as the therm-corr value, e.g. ~100.0479)
+    final SampleData sample = numericalReferenceData['ST-S6']!;
+    final double R = sample.row1[0];
+
+    final table = generateTableForCalPoint(calIndex);
+    if (table.isEmpty) {
+      cp.actualRefPerRow = List.generate(6, (_) => '');
+      notifyListeners();
+      return;
+    }
+
+    final List<String> finalTemps = List.generate(6, (_) => '');
+    for (int r = 0; r < 6; r++) {
+      final double? thermScaled = _getThermCorrScaledForRow(cp, r);
+      debugPrint('computeActualRefsForCalPoint: row=$r thermScaled=$thermScaled');
+      if (thermScaled == null) {
+        finalTemps[r] = '';
+        continue;
+      }
+
+      // Now compute normalized X (same approach as your Excel: X = thermScaled / R)
+      final double xnorm = thermScaled / R; // e.g. 90.1828 / 100.0697 = 0.9013
+      debugPrint(' computeActualRefsForCalPoint: xnorm=$xnorm (thermScaled=$thermScaled R=$R)');
+
+      // find best segment in table (table Xs are unscaled numbers like 0.89..0.913 etc.)
+      int best = 0;
+      double bestDist = double.infinity;
+      for (int i = 0; i < table.length; i++) {
+        final leftX = table[i][0];
+        final rightX = table[i][2];
+        final minX = leftX <= rightX ? leftX : rightX;
+        final maxX = leftX <= rightX ? rightX : leftX;
+        if (xnorm >= minX && xnorm <= maxX) {
+          best = i;
+          break;
+        }
+        final mid = (leftX + rightX) / 2.0;
+        final d = (mid - xnorm).abs();
+        if (d < bestDist) {
+          bestDist = d;
+          best = i;
+        }
+      }
+
+      final seg = table[best];
+      final double leftX = seg[0];
+      final double leftTemp = seg[1];
+      final double rightX = seg[2];
+      final double rightTemp = seg[3];
+
+      double temp;
+      if ((rightX - leftX).abs() < 1e-12) {
+        temp = leftTemp;
+      } else {
+        temp = ((rightTemp - leftTemp) / (rightX - leftX)) * (xnorm - leftX) + leftTemp;
+      }
+
+      finalTemps[r] = temp.toStringAsFixed(8);
+      debugPrint(' computeActualRefsForCalPoint: row=$r segIdx=$best leftX=$leftX rightX=$rightX leftT=$leftTemp rightT=$rightTemp -> temp=$temp');
+    }
+
+    cp.actualRefPerRow = finalTemps;
+    notifyListeners();
+  }
+
+
+  // ------------------------- other utilities -------------------------
   List<Address> addresses = [];
 
   void setAddresses(List<Address> list) {
@@ -458,35 +558,25 @@ class CalibrationProvider extends ChangeNotifier {
   Map<String, List<String>> masterOptions = {};
 
   Future<void> loadMasterOptions() async {
-    final res = await supabase
-        .from('ref_master')
-        .select()
-        .order('value');
-
+    final res = await supabase.from('ref_master').select().order('value');
     masterOptions.clear();
-
     for (final row in res) {
       final category = row['category'] as String;
       final value = row['value'] as String;
-
-      if (!masterOptions.containsKey(category)) {
-        masterOptions[category] = [];
-      }
+      if (!masterOptions.containsKey(category)) masterOptions[category] = [];
       masterOptions[category]!.add(value);
     }
-
     notifyListeners();
   }
-
-
-
 }
 
 
-// old code
+
+// actual values partially completed - fetching the rigth side table values
 // import 'dart:math';
 //
 // import 'package:flutter/foundation.dart';
+// import '../main.dart';
 // import '../models/address.dart';
 // import '../models/calibration_basic_data.dart';
 // import '../models/meter_entry.dart';
@@ -556,6 +646,49 @@ class CalibrationProvider extends ChangeNotifier {
 //     notifyListeners();
 //   }
 //
+//   String? getFieldValue(String fieldName) {
+//     switch (fieldName) {
+//       case 'CertificateNo':
+//         return data.certificateNo;
+//       case 'Instrument':
+//         return data.instrument;
+//       case 'Make':
+//         return data.make;
+//       case 'Model':
+//         return data.model;
+//       case 'SerialNo':
+//         return data.serialNo;
+//       case 'CustomerName':
+//         return data.customerName;
+//       case 'CMRNo':
+//         return data.cmrNo;
+//       case 'DateReceived':
+//         return data.dateReceived;
+//       case 'DateCalibrated':
+//         return data.dateCalibrated;
+//       case 'AmbientTempMax':
+//         return data.ambientTempMax;
+//       case 'AmbientTempMin':
+//         return data.ambientTempMin;
+//       case 'RHMax':
+//         return data.relativeHumidityMax;
+//       case 'RHMin':
+//         return data.relativeHumidityMin;
+//       case 'Thermohygrometer':
+//         return data.thermohygrometer;
+//       case 'RefMethod':
+//         return data.refMethod;
+//       case 'CalibratedAt':
+//         return data.calibratedAt;
+//       case 'Remark':
+//         return data.remark;
+//       case 'Resolution':
+//         return data.resolution;
+//       default:
+//         return null;
+//     }
+//   }
+//
 //   void updateCondition(String which, String value) {
 //     if (which == 'Received') {
 //       data.instrumentConditionReceived = value;
@@ -567,37 +700,49 @@ class CalibrationProvider extends ChangeNotifier {
 //
 //   // Cal point updates
 //   void updateCalPointSetting(int index, String value) {
+//     if (index < 0 || index >= calPoints.length) return;
 //     calPoints[index].setting = value;
 //     notifyListeners();
 //   }
 //
 //   void updateRefReading(int pointIndex, int rowIndex, String value) {
+//     if (!_validPointRow(pointIndex, rowIndex)) return;
 //     calPoints[pointIndex].refReadings[rowIndex] = value;
 //     notifyListeners();
 //   }
 //
 //   void updateTestReading(int pointIndex, int rowIndex, String value) {
+//     if (!_validPointRow(pointIndex, rowIndex)) return;
 //     calPoints[pointIndex].testReadings[rowIndex] = value;
 //     notifyListeners();
 //   }
 //
 //   void updateCalPointRightInfo(int pointIndex, String key, String value) {
+//     if (pointIndex < 0 || pointIndex >= calPoints.length) return;
 //     calPoints[pointIndex].rightInfo[key] = value;
 //     notifyListeners();
 //   }
 //
+//   bool _validPointRow(int pointIndex, int rowIndex) {
+//     if (pointIndex < 0 || pointIndex >= calPoints.length) return false;
+//     final p = calPoints[pointIndex];
+//     return rowIndex >= 0 && rowIndex < (p.refReadings.length);
+//   }
+//
 //   void resetAll() {
-//     print('5400');
 //     data.clear();
 //
 //     for (var p in calPoints) {
 //       p.setting = '';
-//       for (int i = 0; i < 6; i++) {
-//         p.refReadings[i] = '';
-//         p.testReadings[i] = '';
+//       // ensure lists exist and have length 6
+//       p.refReadings = List.generate(6, (_) => '');
+//       p.testReadings = List.generate(6, (_) => '');
+//       // clear rightInfo values but keep keys if needed
+//       if (p.rightInfo.isNotEmpty) {
+//         p.rightInfo.updateAll((key, value) => '');
 //       }
-//       p.rightInfo.updateAll((key, value) => '');
 //       p.meterCorrPerRow = List.generate(6, (_) => '');
+//       p.actualRefPerRow = List.generate(6, (_) => '');
 //     }
 //     notifyListeners();
 //   }
@@ -628,13 +773,15 @@ class CalibrationProvider extends ChangeNotifier {
 //     final List<double?> results = [];
 //     for (var i = 0; i < calPoints.length; i++) {
 //       final cp = calPoints[i];
+//       // Use _safeParseDouble to tolerate '', null and spaces
 //       final parsed = cp.refReadings.map((s) => _safeParseDouble(s)).toList();
 //       final avg = averageDoubleList(parsed);
-//       if (avg != null) {
-//         cp.rightInfo['Meter Corr.'] = avg.toStringAsFixed(8);
-//       } else {
-//         cp.rightInfo['Meter Corr.'] = '';
-//       }
+//       // if you want to store into rightInfo uncomment below:
+//       // if (avg != null) {
+//       //   cp.rightInfo['Meter Corr.'] = avg.toStringAsFixed(8);
+//       // } else {
+//       //   cp.rightInfo['Meter Corr.'] = '';
+//       // }
 //       results.add(avg);
 //     }
 //     notifyListeners();
@@ -650,7 +797,7 @@ class CalibrationProvider extends ChangeNotifier {
 //     }
 //     if (mean < table.first.lowerValue) return table.first;
 //     if (mean > table.last.upperValue) return table.last;
-//     // fallback
+//     // fallback: choose nearest midpoint
 //     MeterEntry? best;
 //     double bestDiff = double.infinity;
 //     for (final r in table) {
@@ -684,13 +831,8 @@ class CalibrationProvider extends ChangeNotifier {
 //     for (var i = 0; i < calPoints.length; i++) {
 //       final cp = calPoints[i];
 //
-//       // parse reference readings safely
-//       final parsed = cp.refReadings.map((s) {
-//         if (s == null) return null;
-//         final t = s.trim();
-//         if (t.isEmpty) return null;
-//         return double.tryParse(t);
-//       }).toList();
+//       // parse reference readings safely using _safeParseDouble
+//       final parsed = cp.refReadings.map((s) => _safeParseDouble(s)).toList();
 //
 //       final valid = parsed.where((x) => x != null).cast<double>().toList();
 //       if (valid.isEmpty) {
@@ -718,11 +860,9 @@ class CalibrationProvider extends ChangeNotifier {
 //       results.add(corr);
 //     }
 //
-//
 //     notifyListeners();
 //     return results;
 //   }
-//
 //
 //   List<List<double>> generateTableForCalPoint(int index) {
 //     final cp = calPoints[index];
@@ -781,9 +921,6 @@ class CalibrationProvider extends ChangeNotifier {
 //         final double z = colZ[r];
 //         final double aa = colAA[r];
 //         final double ab = colAB[r];
-//         print('Ruby -=-=>>> ab = $ab, z = $z, aa = $aa, y = $y, x = $x');
-//         print(
-//             'Ruby ab = ${ab.toStringAsFixed(4)}, z = ${z.toStringAsFixed(4)}, aa = ${aa.toStringAsFixed(4)}, y = ${y.toStringAsFixed(4)}, x = ${x.toStringAsFixed(4)}');
 //
 //         final interpolated = ((ab - z) / (aa - y)) * (x - y) + z;
 //         result[r] = interpolated.toStringAsFixed(4);
@@ -797,15 +934,12 @@ class CalibrationProvider extends ChangeNotifier {
 //   List<String> computeThermCorrections(int calIndex) {
 //     final cp = calPoints[calIndex];
 //
-//     // --- Step A: compute therm-corrected X values (same as before) ---
-//     // But NOTE: multiply by 100 so units match the generateTableForCalPoint output
+//     // --- Step A: compute therm-corrected X values (safe parsing) ---
 //     final List<double> colX = List.filled(6, double.nan);
-//     for (int r = 0; r < 6; r++) {
-//       final refStr = cp.refReadings[r].trim();
-//       final meterCorrStr = cp.meterCorrPerRow[r].trim();
 //
-//       final refVal = double.tryParse(refStr);
-//       final meterVal = double.tryParse(meterCorrStr);
+//     for (int r = 0; r < 6; r++) {
+//       final refVal = (r < cp.refReadings.length) ? _safeParseDouble(cp.refReadings[r]) : null;
+//       final meterVal = (r < cp.meterCorrPerRow.length) ? _safeParseDouble(cp.meterCorrPerRow[r]) : null;
 //
 //       if (refVal == null || meterVal == null) {
 //         colX[r] = double.nan;
@@ -869,11 +1003,7 @@ class CalibrationProvider extends ChangeNotifier {
 //       final double aa = seg[2] * 100.0; // right X (scale)
 //       final double ab = seg[3];         // right temperature (e.g. -25)
 //
-//       // debug print - rounded to 4 decimals
-//       debugPrint('Ruby -=-=> ab=${ab.toStringAsFixed(4)}, z=${z.toStringAsFixed(4)}, aa=${aa.toStringAsFixed(4)}, y=${y.toStringAsFixed(4)}, x=${x.toStringAsFixed(4)}');
-//
 //       // interpolation formula ((AB - Z) / (AA - Y)) * (X - Y) + Z
-//       // Note: we keep the same structure you had, but pass numeric values
 //       try {
 //         final interpolated = ((ab - z) / (aa - y)) * (x - y) + z;
 //         finalResults[r] = interpolated.toStringAsFixed(4); // round to 4 decimals
@@ -882,16 +1012,92 @@ class CalibrationProvider extends ChangeNotifier {
 //       }
 //     }
 //
-//     debugPrint('5400 -=-=-=- >>>> $finalResults');
+//     debugPrint('computeThermCorrections => $finalResults');
 //     return finalResults;
+//   }
+//
+//   // -------------------------
+//   // NEW: compute Actual Ref (left-column) from master coefficients
+//   /// Compute the left-column (Actual Ref) values for given AL temps
+//   List<double> computeActualRefForALs({
+//     required double A,
+//     required double B,
+//     required double C,
+//     required List<int> alList, // e.g. [-28, -27, -26, -25, -24, -23, -22]
+//   }) {
+//     final List<double> results = [];
+//     for (final al in alList) {
+//       final x = al / 100.0;
+//       double value;
+//       if (al < 0) {
+//         // negative branch (matches your IF(AL<0, ... ) formula)
+//         value = 1.0 + A * x + B * (x * x) + C * (x * x * x) * (x - 1.0);
+//       } else {
+//         // positive branch — keep same pattern; replace coefficients if you have them
+//         value = 1.0 + A * x + B * (x * x) + 0.00E+11 * (x * x * x);
+//       }
+//       results.add(value);
+//     }
+//     print('5400 -=-=-= ${results}');
+//     return results;
+//   }
+//
+//   /// Build AL list for a cal-point (7 values) and compute + store the first 6
+//   void computeActualRefsForCalPoint(int calIndex) {
+//     if (calIndex < 0 || calIndex >= calPoints.length) return;
+//     final cp = calPoints[calIndex];
+//
+//     // Build AL sequence (7 values): middle = setting, neighbours +/-1
+//     final int settingValue = int.tryParse(cp.setting) ?? 0;
+//     final List<int> al = List.filled(7, 0);
+//     al[3] = settingValue;
+//     for (int i = 2; i >= 0; i--) al[i] = al[i + 1] - 1;
+//     for (int i = 4; i < 7; i++) al[i] = al[i - 1] + 1;
+//
+//     // Choose the sample coefficients used in generateTableForCalPoint.
+//     // If you use dynamic sample keys per cal-point, change this to pick that sample.
+//     final SampleData sample = numericalReferenceData['ST-S5']!;
+//     final double A = sample.row3[0];
+//     final double B = sample.row4[0];
+//     final double C = sample.row5[0];
+//
+//     final List<double> computed = computeActualRefForALs(A: A, B: B, C: C, alList: al);
+//
+//     // Store first 6 rows formatted to 4 decimal places (UI currently shows 4 dp)
+//     cp.actualRefPerRow = List.generate(6, (i) {
+//       if (i < computed.length) return computed[i].toStringAsFixed(4);
+//       return '';
+//     });
+//
+//     notifyListeners();
 //   }
 //
 //   // for adding address from masters
 //   List<Address> addresses = [];
-//   void loadAddressesFromJson(List<Map<String, dynamic>> list) {
-//     addresses = list.map((m) => Address.fromJson(m)).toList();
-//     print('5400 -=-=-=-= $addresses');
+//
+//   void setAddresses(List<Address> list) {
+//     addresses = list;
+//     debugPrint('Loaded addresses: ${addresses.length}');
 //     notifyListeners();
 //   }
 //
+//   Map<String, List<String>> masterOptions = {};
+//
+//   Future<void> loadMasterOptions() async {
+//     final res = await supabase.from('ref_master').select().order('value');
+//
+//     masterOptions.clear();
+//
+//     for (final row in res) {
+//       final category = row['category'] as String;
+//       final value = row['value'] as String;
+//
+//       if (!masterOptions.containsKey(category)) {
+//         masterOptions[category] = [];
+//       }
+//       masterOptions[category]!.add(value);
+//     }
+//
+//     notifyListeners();
+//   }
 // }

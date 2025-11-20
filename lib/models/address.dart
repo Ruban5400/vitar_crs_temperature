@@ -1,3 +1,4 @@
+// Address model used in other places (kept here for convenience)
 class Address {
   final String customerName;
   final String address1;

@@ -1,4 +1,5 @@
 // lib/screens/detailed_report_page.dart
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -10,7 +11,8 @@ class DetailedReportPage extends StatefulWidget {
   final List<MeterEntry> meterEntries;
   final int startPageIndex;
 
-  const DetailedReportPage({Key? key, required this.meterEntries, this.startPageIndex = 0}) : super(key: key);
+  const DetailedReportPage({Key? key, required this.meterEntries, this.startPageIndex = 0})
+      : super(key: key);
 
   @override
   State<DetailedReportPage> createState() => _DetailedReportPageState();
@@ -45,38 +47,6 @@ class _DetailedReportPageState extends State<DetailedReportPage> {
     );
   }
 
-  /// Try to get a numeric "Reference Indicated" temperature from cal.rightInfo using several common keys.
-  double? _findReferenceIndicatedValue(Map<String, String> rightInfo) {
-    const keysToTry = [
-      'Ref. Ind.',
-      'Ref Ind.',
-      'RefInd',
-      'RefIndicated',
-      'RefIndicatedTemp',
-      'IndicatedTemp',
-      'ReferenceIndicated',
-      'ReferenceTemp',
-      'Indicated',
-      'Ref. Ind',
-      'RefInd',
-    ];
-    for (final key in keysToTry) {
-      if (rightInfo.containsKey(key)) {
-        final v = rightInfo[key]!.trim();
-        if (v.isEmpty) continue;
-        final parsed = double.tryParse(v);
-        if (parsed != null) return parsed;
-      }
-    }
-    // If not found in those common keys, also try any key whose value parses as double.
-    for (final entry in rightInfo.entries) {
-      final parsed = double.tryParse(entry.value.trim());
-      if (parsed != null) return parsed;
-    }
-    return null;
-  }
-
-
   Widget _buildCalPointBlock(BuildContext context, int calIndex, List<MeterEntry> meterEntries) {
     final prov = Provider.of<CalibrationProvider>(context, listen: false);
     final cal = prov.calPoints[calIndex];
@@ -109,8 +79,14 @@ class _DetailedReportPageState extends State<DetailedReportPage> {
       }
     }
 
-    // DEBUG: uncomment to print testReadings to console when block builds
-    // debugPrint('CalPoint $calIndex testReadings: ${cal.testReadings}');
+    // Prepare therm interpolation as fallback (but prefer stored master-based actualRefPerRow)
+    List<String>? thermFallback;
+    if (cal.actualRefPerRow.where((s) => s.isNotEmpty).isEmpty) {
+      thermFallback = prov.computeTherCorrections(calIndex);
+    }
+
+    // Also ensure we have computed "actualRefPerRow" using masters if the cal point was prepared
+    // (you may call prov.computeActualRefsForCalPoint(index) earlier in workflow where appropriate)
 
     return Card(
       elevation: 2,
@@ -178,11 +154,13 @@ class _DetailedReportPageState extends State<DetailedReportPage> {
               refIndStr = ''; // fallback if parsing fails
             }
 
-
-            // Actual Ref (your new column)
-            final List<String> actualRefs = prov.computeThermCorrections(calIndex);
+            // Actual Ref (prefer master-based stored values; fallback to therm interpolation)
             String actualRefStr = '';
-            if (r < actualRefs.length) actualRefStr = actualRefs[3];
+            if (cal.actualRefPerRow.isNotEmpty && r < cal.actualRefPerRow.length && cal.actualRefPerRow[r].isNotEmpty) {
+              actualRefStr = cal.actualRefPerRow[r];
+            } else if (thermFallback != null && r < thermFallback.length) {
+              actualRefStr = thermFallback[r];
+            }
 
             // Test Reading (user-entered) - show raw string if non-numeric
             final rawTest = (r < cal.testReadings.length) ? cal.testReadings[r].trim() : '';
@@ -199,7 +177,6 @@ class _DetailedReportPageState extends State<DetailedReportPage> {
               testActualStr = rawTest;
             }
 
-            // Difference = Reference Indicated - Test Actual (if numeric)
             // Difference = Actual Ref - Actual Test (if numeric)
             String differenceStr = '';
             final parsedActualRef = double.tryParse(actualRefStr);
@@ -207,7 +184,6 @@ class _DetailedReportPageState extends State<DetailedReportPage> {
             if (parsedActualRef != null && parsedTestAct != null) {
               differenceStr = (parsedActualRef - parsedTestAct).toStringAsFixed(4);
             }
-
 
             return Padding(
               padding: const EdgeInsets.symmetric(vertical: 2.0),
@@ -270,7 +246,6 @@ class _DetailedReportPageState extends State<DetailedReportPage> {
       ),
     );
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -366,7 +341,6 @@ class _DetailedReportPageState extends State<DetailedReportPage> {
                     ),
                   );
                 },
-
                 child: const Text('Preview COC'),
               )
             ]),

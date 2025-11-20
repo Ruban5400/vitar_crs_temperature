@@ -87,10 +87,15 @@ class CalibrationPoint {
   // new: computed correction per visible row (same value repeated for 6 rows)
   List<String> meterCorrPerRow = List.generate(6, (_) => '');
 
+  // NEW: store master-based Actual Ref per row (6 visible rows)
+  List<String> actualRefPerRow = List.generate(6, (_) => '');
+
   Map<String, dynamic> toMap() => {
     'setting': setting,
     'refReadings': refReadings,
     'testReadings': testReadings,
     'rightInfo': rightInfo,
+    'meterCorrPerRow': meterCorrPerRow,
+    'actualRefPerRow': actualRefPerRow,
   };
 }

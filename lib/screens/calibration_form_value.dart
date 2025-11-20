@@ -42,7 +42,10 @@ class CalibrationFormPage extends StatelessWidget {
                               horizontal: 8,
                             ),
                             decoration: BoxDecoration(
-                              border: Border.all(color: Colors.black, width: 1.2),
+                              border: Border.all(
+                                color: Colors.black,
+                                width: 1.2,
+                              ),
                             ),
                             child: Row(
                               children: [
@@ -56,9 +59,12 @@ class CalibrationFormPage extends StatelessWidget {
                                     decoration: const InputDecoration(
                                       border: InputBorder.none,
                                       isDense: true,
-                                      contentPadding: EdgeInsets.symmetric(vertical: 6),
+                                      contentPadding: EdgeInsets.symmetric(
+                                        vertical: 6,
+                                      ),
                                     ),
-                                    onChanged: (v) => prov.updateField('SerialNo', v),
+                                    onChanged: (v) =>
+                                        prov.updateField('SerialNo', v),
                                   ),
                                 ),
                               ],
@@ -70,7 +76,8 @@ class CalibrationFormPage extends StatelessWidget {
 
                       LayoutBuilder(
                         builder: (context, constraints) {
-                          final double itemWidth = (constraints.maxWidth - 12) / 2;
+                          final double itemWidth =
+                              (constraints.maxWidth - 12) / 2;
                           return Wrap(
                             spacing: 8,
                             runSpacing: 8,
@@ -106,27 +113,32 @@ class CalibrationFormPage extends StatelessWidget {
                             );
                           }
 
+                          // compute master-based Actual Ref for each cal-point
+                          for (int i = 0; i < calProv.calPoints.length; i++) {
+                            calProv.computeActualRefsForCalPoint(i);
+                          }
+
                           final calibrationProvider = CalibrationProvider();
 
                           // ✅ Use the actual "setting" value stored for the cal point
                           final settingValue = calProv.calPoints[0].setting;
-                          calibrationProvider.updateCalPointSetting(0, settingValue);
+                          calibrationProvider.updateCalPointSetting(
+                            0,
+                            settingValue,
+                          );
 
                           List<List<double>> table = calibrationProvider
                               .generateTableForCalPoint(0);
 
-                          for (var row in table) {
-                            print(
-                              '5400 =-=-=>> ${row.map((e) => e.toStringAsFixed(4)).join('\t')}',
-                            );
-                          }
+                          print('5400 =-=-=>> ${table}');
 
                           // loader
                           showDialog(
                             context: context,
                             barrierDismissible: false,
-                            builder: (_) =>
-                                const Center(child: CircularProgressIndicator()),
+                            builder: (_) => const Center(
+                              child: CircularProgressIndicator(),
+                            ),
                           );
 
                           try {
@@ -137,15 +149,19 @@ class CalibrationFormPage extends StatelessWidget {
                             final rows = await meterProv.fetchAll();
 
                             // 3) compute interpolated meter corrections and write into meterCorrPerRow
-                            calProv.calculateMeterCorrections(rows);
+                            // calProv.calculateMeterCorrections(rows);
 
+                            for (int i = 0; i < calProv.calPoints.length; i++) {
+                              calProv.computeActualRefsForCalPoint(i);
+                            }
                             Navigator.of(context).pop(); // remove loader
 
                             // 4) navigate to report
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (_) => DetailedReportPage(meterEntries: rows),
+                                builder: (_) =>
+                                    DetailedReportPage(meterEntries: rows),
                               ),
                             );
                           } catch (e, st) {
@@ -153,7 +169,9 @@ class CalibrationFormPage extends StatelessWidget {
                             debugPrint('Error preparing calculations: $e\n$st');
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Text('Failed to prepare calculations: $e'),
+                                content: Text(
+                                  'Failed to prepare calculations: $e',
+                                ),
                               ),
                             );
                           }

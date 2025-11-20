@@ -172,7 +172,7 @@ class COCPreviewPage extends StatelessWidget {
           (() {
             final cp = cps[i];
             // compute actualRef mean and test mean
-            final actualRefs = prov.computeThermCorrections(i);
+            final actualRefs = prov.computeTherCorrections(i);
             final meanActual = _meanFromActualRefs(actualRefs);
             final meanTest = _meanFromList(cp.testReadings);
             final correction = (meanActual != null && meanTest != null) ? (meanActual - meanTest) : null;
