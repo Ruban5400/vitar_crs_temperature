@@ -130,8 +130,6 @@ class CalibrationFormPage extends StatelessWidget {
                           List<List<double>> table = calibrationProvider
                               .generateTableForCalPoint(0);
 
-                          print('5400 =-=-=>> ${table}');
-
                           // loader
                           showDialog(
                             context: context,
@@ -142,18 +140,20 @@ class CalibrationFormPage extends StatelessWidget {
                           );
 
                           try {
-                            // 1) compute averages in rightInfo['Meter Corr.']
+                            // 1) compute averages
                             calProv.computeAndStoreMeterCorrections();
 
-                            // 2) ensure meter table is loaded (from Supabase or sample)
+                            // 2) load meter table (rows)
                             final rows = await meterProv.fetchAll();
 
-                            // 3) compute interpolated meter corrections and write into meterCorrPerRow
-                            // calProv.calculateMeterCorrections(rows);
+                            // 3) compute interpolated meter corrections into meterCorrPerRow (if you have rows)
+                            calProv.calculateMeterCorrections(rows);
 
+                            // 4) compute actual refs (this will now see meterCorrPerRow)
                             for (int i = 0; i < calProv.calPoints.length; i++) {
                               calProv.computeActualRefsForCalPoint(i);
                             }
+
                             Navigator.of(context).pop(); // remove loader
 
                             // 4) navigate to report

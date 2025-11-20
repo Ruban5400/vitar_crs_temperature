@@ -473,38 +473,83 @@ class CalibrationProvider extends ChangeNotifier {
     if (calIndex < 0 || calIndex >= calPoints.length) return;
     final cp = calPoints[calIndex];
 
-    // Build AL sequence (7 values): middle = setting, neighbours +/-1
-    final int settingValue = int.tryParse(cp.setting) ?? 0;
+    debugPrint('computeActualRefsForCalPoint: called calIndex=$calIndex setting="${cp.setting}"');
+
+    // --- find an effective setting: prefer cp.setting, fallback to nearest non-empty setting ---
+    int effectiveSetting = int.tryParse(cp.setting) ?? 0;
+    if (cp.setting.trim().isEmpty) {
+      int fallbackIndex = -1;
+      int bestDist = 1 << 20;
+      for (int j = 0; j < calPoints.length; j++) {
+        if (calPoints[j].setting.trim().isNotEmpty) {
+          final s = int.tryParse(calPoints[j].setting) ?? 0;
+          final d = (j - calIndex).abs();
+          if (d < bestDist) {
+            bestDist = d;
+            fallbackIndex = j;
+            effectiveSetting = s;
+          }
+        }
+      }
+      if (fallbackIndex != -1) {
+        debugPrint(' computeActualRefsForCalPoint: using fallback setting from index=$fallbackIndex => $effectiveSetting');
+      } else {
+        debugPrint(' computeActualRefsForCalPoint: no setting found anywhere; cannot build table -> clearing actualRefPerRow');
+        cp.actualRefPerRow = List.generate(6, (_) => '');
+        notifyListeners();
+        return;
+      }
+    }
+
+    // Build the AL sequence locally (7 values) using effectiveSetting
     final List<int> al = List.filled(7, 0);
-    al[3] = settingValue;
+    al[3] = effectiveSetting;
     for (int i = 2; i >= 0; i--) al[i] = al[i + 1] - 1;
     for (int i = 4; i < 7; i++) al[i] = al[i - 1] + 1;
 
-    // Choose sample and R (R is in same units as the therm-corr value, e.g. ~100.0479)
+    // Use the same sample selection as generateTableForCalPoint
     final SampleData sample = numericalReferenceData['ST-S6']!;
     final double R = sample.row1[0];
 
-    final table = generateTableForCalPoint(calIndex);
-    if (table.isEmpty) {
-      cp.actualRefPerRow = List.generate(6, (_) => '');
-      notifyListeners();
-      return;
+    // Build the table (7 rows) the same way generateTableForCalPoint does
+    List<double> col1 = [];
+    for (int i = 0; i < 7; i++) {
+      final double AL = al[i].toDouble();
+      double value;
+      if (AL < 0) {
+        value = 1 +
+            sample.row3[0] * (AL / 100) +
+            sample.row4[0] * pow(AL / 100, 2) +
+            sample.row5[0] * pow(AL / 100, 3) * ((AL / 100) - 1);
+      } else {
+        value = 1 +
+            sample.row3[0] * (AL / 100) +
+            sample.row4[0] * pow(AL / 100, 2) +
+            0.00E+11 * pow(AL / 100, 3);
+      }
+      col1.add(value);
     }
+    // col3 is col1 shifted left by 1, col2 is al, col4 is al shifted
+    List<double> col3 = col1.sublist(1)..add(0.0);
+    List<double> col2 = al.map((e) => e.toDouble()).toList();
+    List<double> col4 = col2.sublist(1)..add(0.0);
+    final List<List<double>> table = List.generate(7, (i) => [col1[i], col2[i], col3[i], col4[i]]);
 
+    // Now compute actualRef per row
     final List<String> finalTemps = List.generate(6, (_) => '');
     for (int r = 0; r < 6; r++) {
       final double? thermScaled = _getThermCorrScaledForRow(cp, r);
-      debugPrint('computeActualRefsForCalPoint: row=$r thermScaled=$thermScaled');
+      debugPrint(' computeActualRefsForCalPoint: row=$r thermScaled=$thermScaled');
       if (thermScaled == null) {
         finalTemps[r] = '';
         continue;
       }
 
-      // Now compute normalized X (same approach as your Excel: X = thermScaled / R)
-      final double xnorm = thermScaled / R; // e.g. 90.1828 / 100.0697 = 0.9013
-      debugPrint(' computeActualRefsForCalPoint: xnorm=$xnorm (thermScaled=$thermScaled R=$R)');
+      // Xnorm = thermScaled / R (thermScaled and R are in same units e.g. ~90.x and ~100.x)
+      final double xnorm = thermScaled / R;
+      debugPrint('  -> xnorm=$xnorm (thermScaled=$thermScaled R=$R)');
 
-      // find best segment in table (table Xs are unscaled numbers like 0.89..0.913 etc.)
+      // find best segment in our locally-built table
       int best = 0;
       double bestDist = double.infinity;
       for (int i = 0; i < table.length; i++) {
@@ -538,12 +583,13 @@ class CalibrationProvider extends ChangeNotifier {
       }
 
       finalTemps[r] = temp.toStringAsFixed(8);
-      debugPrint(' computeActualRefsForCalPoint: row=$r segIdx=$best leftX=$leftX rightX=$rightX leftT=$leftTemp rightT=$rightTemp -> temp=$temp');
+      debugPrint('  -> row=$r seg=$best leftX=$leftX rightX=$rightX leftT=$leftTemp rightT=$rightTemp => temp=$temp');
     }
 
     cp.actualRefPerRow = finalTemps;
     notifyListeners();
   }
+
 
 
   // ------------------------- other utilities -------------------------
