@@ -4,12 +4,10 @@ import '../providers/calibration_provider.dart';
 
 class EditableDataField extends StatefulWidget {
   final String fieldName;
-  final String? defaultValue; // new optional default
 
   const EditableDataField({
     Key? key,
     required this.fieldName,
-    this.defaultValue,
   }) : super(key: key);
 
   @override
@@ -24,25 +22,15 @@ class _EditableDataFieldState extends State<EditableDataField> {
   void initState() {
     super.initState();
     _controller = TextEditingController();
-    // We'll initialize controller in didChangeDependencies so provider is available
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (_initialized) return;
+
     final prov = Provider.of<CalibrationProvider>(context, listen: false);
-
-    // get current value from provider for this field (if any)
-    String current = _readProviderValue(prov, widget.fieldName) ?? '';
-
-    if (current.isEmpty && (widget.defaultValue != null && widget.defaultValue!.isNotEmpty)) {
-      // if provider empty, set provider to defaultValue so it persists as fixed value
-      prov.updateField(widget.fieldName, widget.defaultValue!);
-      current = widget.defaultValue!;
-    }
-
-    _controller.text = current;
+    _controller.text = _readProviderValue(prov, widget.fieldName) ?? '';
     _initialized = true;
   }
 
@@ -103,6 +91,20 @@ class _EditableDataFieldState extends State<EditableDataField> {
 
   @override
   Widget build(BuildContext context) {
+    // 👇 Listen for provider updates for this field
+    final prov = Provider.of<CalibrationProvider>(context);
+
+    // 👇 Get current value from provider
+    final currentValue = _readProviderValue(prov, widget.fieldName) ?? '';
+
+    // 👇 Sync controller text if provider changed (e.g. after resetAll)
+    if (_controller.text != currentValue) {
+      _controller.text = currentValue;
+      _controller.selection = TextSelection.fromPosition(
+        TextPosition(offset: _controller.text.length),
+      );
+    }
+
     return TextField(
       controller: _controller,
       onChanged: _onChanged,
@@ -110,8 +112,6 @@ class _EditableDataFieldState extends State<EditableDataField> {
         isDense: true,
         contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(4)),
-        // show the defaultValue as a hint only when controller is empty:
-        hintText: _controller.text.isEmpty ? widget.defaultValue : null,
       ),
     );
   }

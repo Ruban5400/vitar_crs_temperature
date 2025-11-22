@@ -1,6 +1,3 @@
-// The data you need to store
-import 'dart:math';
-
 const Map<String, bool> initialReferenceStatus = {
   'ST-S1': false,
   'ST-S3': false,
@@ -37,10 +34,10 @@ final Map<String, SampleData> numericalReferenceData = {
     row5: [-0.0010613, 0],
   ),
   'ST-S6': SampleData(
-    row1: [100.0479, 100.0479],
-    row3: [0.39029, 0.39029],
-    row4: [-0.005614, -0.005614],
-    row5: [-0.0085966, 0],
+    row1: [100.0542, 100.0542],
+    row3: [0.39054, 0.39054],
+    row4: [-0.0056753, -0.0056753],
+    row5: [-0.0045078, 0],
   ),
   'ST-S4': SampleData(
     row1: [100.0697, 100.0697],
@@ -49,4 +46,6 @@ final Map<String, SampleData> numericalReferenceData = {
     row5: [-0.092787, 0],
   ),
 };
+
+
 
