@@ -79,13 +79,14 @@ class _DetailedReportPageState extends State<DetailedReportPage> {
       }
     }
 
-    // therm fallback only if actualRefPerRow is empty
+    // ONLY compute thermFallback if user has entered any reference readings for this cal point
+    final bool hasAnyUserRef = cal.refReadings.any((s) => s.trim().isNotEmpty);
     List<String>? thermFallback;
-    if (cal.actualRefPerRow.where((s) => s.isNotEmpty).isEmpty) {
+    if (hasAnyUserRef) {
       thermFallback = prov.computeTherCorrections(calIndex);
     }
 
-    // Collect reference numeric values to compute average at end of block
+    // Collect reference numeric values to compute average at end of block (only user-entered refs)
     final List<double> refValues = <double>[];
 
     String _formatNullableDouble(double? v, {int frac = 4}) {
@@ -128,24 +129,26 @@ class _DetailedReportPageState extends State<DetailedReportPage> {
 
           // 6 rows
           ...List.generate(6, (r) {
-            // Reference (provider preferred)
+            // Reference (provider only — NO fallback to meterEntries)
             final providerRef = (r < cal.refReadings.length) ? cal.refReadings[r].trim() : '';
             String refDisplay = '';
             if (providerRef.isNotEmpty) {
               refDisplay = providerRef;
-            } else if (m != null) {
-              refDisplay = (r % 2 == 0) ? _formatNullableDouble(m.lowerValue) : _formatNullableDouble(m.upperValue);
+            } else {
+              // intentionally leave blank if user didn't enter value
+              refDisplay = '';
             }
 
             final refNum = double.tryParse(refDisplay);
             if (refNum != null) refValues.add(refNum);
 
-            // Meter Corr (computed list preferred)
+            // Meter Corr (only if provider computed it for that row)
             String meterCorr = '';
             if (cal.meterCorrPerRow.isNotEmpty && r < cal.meterCorrPerRow.length && cal.meterCorrPerRow[r].isNotEmpty) {
               meterCorr = cal.meterCorrPerRow[r];
-            } else if (m != null) {
-              meterCorr = _formatNullableDouble(r % 2 == 0 ? m.lowerCorrection : m.upperCorrection);
+            } else {
+              // no user data => leave blank (no fallback to m.lower/upper)
+              meterCorr = '';
             }
 
             // Reference Indicated (Ther. Corr.) = ref + meterCorr if numeric
@@ -155,26 +158,33 @@ class _DetailedReportPageState extends State<DetailedReportPage> {
             if (parsedRef != null && parsedMeterCorr != null) {
               refIndStr = (parsedRef + parsedMeterCorr).toStringAsFixed(4);
             } else if (referenceIndicatedFromRightInfo != null) {
+              // if user has provided an explicit indicated reference (rightInfo), show it
               refIndStr = referenceIndicatedFromRightInfo.toStringAsFixed(4);
+            } else {
+              refIndStr = '';
             }
 
-            // Actual Ref (prefer master-based stored values; fallback to therm interpolation)
+            // Actual Ref (prefer cal.actualRefPerRow stored values; fallback to thermFallback only if thermFallback computed)
             String actualRefStr = '';
             if (cal.actualRefPerRow.isNotEmpty && r < cal.actualRefPerRow.length && cal.actualRefPerRow[r].isNotEmpty) {
               actualRefStr = cal.actualRefPerRow[r];
-            } else if (thermFallback != null && r < thermFallback.length) {
+            } else if (thermFallback != null && r < thermFallback.length && thermFallback[r].isNotEmpty) {
               actualRefStr = thermFallback[r];
+            } else {
+              actualRefStr = '';
             }
 
-            // Test Reading (user-entered)
+            // Test Reading (user-entered only)
             final rawTest = (r < cal.testReadings.length) ? cal.testReadings[r].trim() : '';
             String testActualStr = '';
-            const testCorrStr = '0.0000'; // constant in your flow
+            const testCorrStr = '0.0000';
             final parsedTest = double.tryParse(rawTest);
             if (parsedTest != null) {
               testActualStr = parsedTest.toStringAsFixed(4);
             } else if (rawTest.isNotEmpty) {
               testActualStr = rawTest; // show raw if non-numeric
+            } else {
+              testActualStr = '';
             }
 
             // Difference = Actual Ref - Test Actual (if both numeric)
@@ -183,6 +193,8 @@ class _DetailedReportPageState extends State<DetailedReportPage> {
             final parsedTestAct = double.tryParse(testActualStr);
             if (parsedActualRef != null && parsedTestAct != null) {
               differenceStr = (parsedActualRef - parsedTestAct).toStringAsFixed(4);
+            } else {
+              differenceStr = '';
             }
 
             return Padding(
@@ -198,7 +210,7 @@ class _DetailedReportPageState extends State<DetailedReportPage> {
                 const SizedBox(width: 8),
                 Expanded(child: Text(rawTest, textAlign: TextAlign.left)),
                 const SizedBox(width: 8),
-                Expanded(child: const Text(testCorrStr, textAlign: TextAlign.left)),
+                Expanded(child: Text(testCorrStr, textAlign: TextAlign.left)),
                 const SizedBox(width: 8),
                 Expanded(child: Text(testActualStr, textAlign: TextAlign.left)),
                 const SizedBox(width: 8),
@@ -210,7 +222,7 @@ class _DetailedReportPageState extends State<DetailedReportPage> {
 
           const Divider(),
 
-          // Average row
+          // Average row — only show if there are user-entered numeric refs
           Builder(builder: (_) {
             if (refValues.isEmpty) return const SizedBox.shrink();
             final avg = refValues.reduce((a, b) => a + b) / refValues.length;
@@ -246,6 +258,7 @@ class _DetailedReportPageState extends State<DetailedReportPage> {
       ),
     );
   }
+
 
   @override
   Widget build(BuildContext context) {

@@ -58,8 +58,6 @@ class CalibrationProvider extends ChangeNotifier {
     }
   }
 
-  /// Loads master lookup options from `vitar_master_lookup` and stores as
-  /// category -> List<String> in masterOptions.
   Future<void> loadMasterOptions() async {
     try {
       final map = await _masterService.fetchMasterOptions();
@@ -70,11 +68,9 @@ class CalibrationProvider extends ChangeNotifier {
     }
   }
 
-  /// Loads reference/sample tables (vitar_calibration_reference_values).
   Future<void> loadReferenceSamples() async {
     try {
       final map = await _referenceService.fetchReferenceSamples();
-      // map keys like 'ST-S5', 'ST-S6', 'ST-S4' expected
       referenceSamples = map;
       notifyListeners();
     } catch (e, st) {
@@ -82,7 +78,6 @@ class CalibrationProvider extends ChangeNotifier {
     }
   }
 
-  /// Loads meter table from vitar_meter and caches into meterTable.
   Future<void> loadMeterTable() async {
     try {
       final rows = await _meterService.fetchMeterData();
@@ -218,12 +213,17 @@ class CalibrationProvider extends ChangeNotifier {
   void updateRefReading(int pointIndex, int rowIndex, String value) {
     if (!_validPointRow(pointIndex, rowIndex)) return;
     calPoints[pointIndex].refReadings[rowIndex] = value;
+    // when user explicitly updates a ref reading, recalc meter corr & actual refs for that point
+    calculateMeterCorrections(); // will remain blank if insufficient user data
+    computeActualRefsForCalPoint(pointIndex);
     notifyListeners();
   }
 
   void updateTestReading(int pointIndex, int rowIndex, String value) {
     if (!_validPointRow(pointIndex, rowIndex)) return;
     calPoints[pointIndex].testReadings[rowIndex] = value;
+    // test readings don't affect meterCorr directly in current logic,
+    // but you may want to recompute derived values when tests change.
     notifyListeners();
   }
 
@@ -237,7 +237,7 @@ class CalibrationProvider extends ChangeNotifier {
     calPoints[pointIndex].rightInfo[key] = value;
     notifyListeners();
 
-    // recompute meter corrections using current meterTable
+    // recompute meter corrections using current meterTable (will be blank unless user has ref readings)
     calculateMeterCorrections();
 
     // if changing reference sample (affects table generation) we should update ALL points
@@ -292,6 +292,13 @@ class CalibrationProvider extends ChangeNotifier {
     return sum / valid.length;
   }
 
+  bool _hasAnyUserRef(CalibrationPoint cp) {
+    for (final s in cp.refReadings) {
+      if (s.trim().isNotEmpty) return true;
+    }
+    return false;
+  }
+
   /// Compute simple averages of each cal-point's refReadings (returns list)
   List<double?> computeAndStoreMeterCorrections() {
     final List<double?> results = [];
@@ -340,21 +347,27 @@ class CalibrationProvider extends ChangeNotifier {
   }
 
   /// Calculates meter corrections for each cal point using `meterTable` (or overrideTable).
-  /// Stores the same formatted correction string into cp.meterCorrPerRow repeated for 6 rows.
+  /// IMPORTANT: this will NOT fill meterCorrPerRow unless the user has entered at least one numeric
+  /// reference reading for that cal point. If no user ref readings exist, meterCorrPerRow remains blank.
   List<double?> calculateMeterCorrections([List<MeterEntry>? overrideTable]) {
     final tableToUse = overrideTable ?? meterTable;
     final List<double?> results = [];
 
     for (var i = 0; i < calPoints.length; i++) {
       final cp = calPoints[i];
+
+      // Require at least one user-entered ref reading (non-empty & numeric) before computing.
       final parsed = cp.refReadings.map((s) => _safeParseDouble(s)).toList();
       final valid = parsed.where((x) => x != null).cast<double>().toList();
+
       if (valid.isEmpty) {
+        // leave meterCorrPerRow blank when there's no user-entered numeric ref readings
         cp.meterCorrPerRow = List.generate(6, (_) => '');
         results.add(null);
         continue;
       }
 
+      // compute mean on available numeric reference readings
       final mean = valid.reduce((a, b) => a + b) / valid.length;
       final seg = _findSegmentForMean(mean, tableToUse);
       if (seg == null) {
@@ -374,14 +387,7 @@ class CalibrationProvider extends ChangeNotifier {
   }
 
   // ------------------------- sample selection helper -------------------------
-  /// Choose the SampleData to use for a cal-point.
-  /// Preference:
-  /// 1) explicit user selection in cp.rightInfo (e.g. 'Ref. Ther.')
-  /// 2) masterOptions['Ref. Ther.'] first non-empty value (if it matches referenceSamples)
-  /// 3) any loaded referenceSamples.first
-  /// 4) fallback numericalReferenceData['ST-S6']
   SampleData _chooseSampleForCalPoint(CalibrationPoint cp) {
-    // 1) try explicit keys on this cal-point
     final keysToTry = [
       'Ref. Ther.',
       'Ref Ther.',
@@ -394,11 +400,9 @@ class CalibrationProvider extends ChangeNotifier {
       }
     }
 
-    // 2) try to use provider.masterOptions 'Ref. Ther.' default value
     try {
       final masterList = masterOptions['Ref. Ther.'] ?? masterOptions['Ref. Ther'] ?? masterOptions['RefTher'];
       if (masterList != null && masterList.isNotEmpty) {
-        // pick first meaningful entry that exists in referenceSamples
         for (final candidate in masterList) {
           final cand = candidate.trim();
           if (cand.isEmpty || cand == 'Other...') continue;
@@ -409,10 +413,7 @@ class CalibrationProvider extends ChangeNotifier {
       // ignore
     }
 
-    // 3) any loaded reference sample
     if (referenceSamples.isNotEmpty) return referenceSamples.values.first;
-
-    // 4) fallback to built-in numeric table
     return numericalReferenceData['ST-S6']!;
   }
 
@@ -422,8 +423,6 @@ class CalibrationProvider extends ChangeNotifier {
     if (cp.setting.isEmpty) return [];
 
     int settingValue = int.tryParse(cp.setting) ?? 0;
-
-    // Choose sample via centralized helper
     final SampleData sample = _chooseSampleForCalPoint(cp);
 
     List<int> col2 = List.filled(7, 0);
@@ -492,8 +491,8 @@ class CalibrationProvider extends ChangeNotifier {
 
       debugPrint('computeTherCorrections: calIndex=$calIndex row=$r refVal=$refVal meterVal=$meterVal');
 
+      // Only calculate therm correction where both a measured ref and a meter correction exist.
       if (refVal == null || meterVal == null) {
-        debugPrint('  -> skipping row $r because ${refVal == null ? "refVal==null" : ""} ${meterVal == null ? "meterVal==null" : ""}');
         colX[r] = double.nan;
         continue;
       }
@@ -560,7 +559,9 @@ class CalibrationProvider extends ChangeNotifier {
     return finalResults;
   }
 
-  double? _getThermCorrScaledForRow(CalibrationPoint cp, int rowIndex) {
+  /// Returns indicated reference (same units as sample.row1[0]) or null.
+  /// Theoretical/sample fallback is only used when `allowTheoretical` is true.
+  double? _getThermCorrScaledForRow(CalibrationPoint cp, int rowIndex, {bool allowTheoretical = false}) {
     // 1) Check explicit rightInfo therm/ref-indicated keys (existing behavior)
     final possibleKeys = [
       'Ther. Corr.', 'Ther Corr', 'TherCorr',
@@ -574,14 +575,14 @@ class CalibrationProvider extends ChangeNotifier {
           final v = double.tryParse(s);
           if (v != null) {
             debugPrint('_getThermCorrScaledForRow: found rightInfo[$k]=$v for row=$rowIndex');
-            // NORMALIZED: assume rightInfo value is an indicated reference (same units as R)
+            // assume rightInfo value is an indicated reference (same units as R)
             return v;
           }
         }
       }
     }
 
-    // 2) Try to parse refReading and meterCorrRow (existing fallback)
+    // 2) Try to parse refReading and meterCorrRow (explicit user/measured data)
     final refStr = (rowIndex < cp.refReadings.length) ? cp.refReadings[rowIndex].trim() : '';
     final meterCorrStr = (rowIndex < cp.meterCorrPerRow.length) ? cp.meterCorrPerRow[rowIndex].trim() : '';
 
@@ -595,27 +596,22 @@ class CalibrationProvider extends ChangeNotifier {
       return refInd;
     }
 
-    // 3) NEW: If no measured refVal, try to compute theoretical ref from reference sample table
-    //    (so we can still compute a thermScaled when user hasn't measured all rows)
+    // 3) Theoretical/sample fallback (only if caller explicitly allows it)
+    if (!allowTheoretical) return null;
+
     try {
-      // choose sample same as generateTableForCalPoint
       final String chosenKey = (cp.rightInfo['Ref. Ther.'] ?? cp.rightInfo['Ref Ther.'] ?? cp.rightInfo['RefTher'] ?? '').trim();
       SampleData sample;
       if (chosenKey.isNotEmpty && referenceSamples.containsKey(chosenKey)) {
-
         sample = referenceSamples[chosenKey]!;
-        print('5400 -=-=-=- ${sample.row1}');
       } else if (referenceSamples.isNotEmpty) {
         sample = referenceSamples.values.first;
-      }
-      else {
+      } else {
         sample = numericalReferenceData['ST-S6']!;
       }
 
-      // Build AL positions identical to generateTableForCalPoint
       int effectiveSetting = int.tryParse(cp.setting) ?? 0;
       if (cp.setting.trim().isEmpty) {
-        // fallback: find nearest non-empty setting from other calPoints
         int fallbackIndex = -1;
         int bestDist = 1 << 20;
         for (int j = 0; j < calPoints.length; j++) {
@@ -636,7 +632,6 @@ class CalibrationProvider extends ChangeNotifier {
       for (int i = 2; i >= 0; i--) al[i] = al[i + 1] - 1;
       for (int i = 4; i < 7; i++) al[i] = al[i - 1] + 1;
 
-      // Build col1 multipliers (same formula used elsewhere)
       List<double> col1 = [];
       for (int i = 0; i < 7; i++) {
         final double AL = al[i].toDouble();
@@ -655,19 +650,14 @@ class CalibrationProvider extends ChangeNotifier {
         col1.add(value);
       }
 
-      // Theoretical reference value for this row = R * multiplier
       final double R = sample.row1[0];
-      // map rowIndex (0..5) to table index 0..5 (same mapping used elsewhere)
       if (rowIndex >= 0 && rowIndex < 6) {
         final double theoreticalRef = (rowIndex < col1.length) ? (R * col1[rowIndex]) : double.nan;
         if (!theoreticalRef.isNaN) {
-          // if we also have meterCorr, add it
           if (meterCorrVal != null) {
             final refInd = theoreticalRef + meterCorrVal;
-            debugPrint('_getThermCorrScaledForRow: using theoreticalRef=$theoreticalRef meterCorr=$meterCorrVal => refInd=$refInd');
             return refInd;
           } else {
-            debugPrint('_getThermCorrScaledForRow: using theoreticalRef=$theoreticalRef (no meterCorr)');
             return theoreticalRef;
           }
         }
@@ -676,7 +666,6 @@ class CalibrationProvider extends ChangeNotifier {
       debugPrint('_getThermCorrScaledForRow: error computing theoretical ref fallback: $e\n$st');
     }
 
-    // Nothing useful found.
     return null;
   }
 
@@ -706,18 +695,12 @@ class CalibrationProvider extends ChangeNotifier {
       }
     }
 
-    // Build AL sequence & sample selection
     final List<int> al = List.filled(7, 0);
     al[3] = effectiveSetting;
     for (int i = 2; i >= 0; i--) al[i] = al[i + 1] - 1;
     for (int i = 4; i < 7; i++) al[i] = al[i - 1] + 1;
 
-    // pick sample via helper
     final SampleData sample = _chooseSampleForCalPoint(cp);
-    print('5400 ===== ${sample.row1}');
-    print('5400 ===== $cp');
-
-
     final double R = sample.row1[0];
 
     // Build table (same as generateTableForCalPoint)
@@ -745,7 +728,8 @@ class CalibrationProvider extends ChangeNotifier {
 
     final List<String> finalTemps = List.generate(6, (_) => '');
     for (int r = 0; r < 6; r++) {
-      final double? thermScaled = _getThermCorrScaledForRow(cp, r);
+      // IMPORTANT: do not allow theoretical fallback here — only compute for rows with explicit user data
+      final double? thermScaled = _getThermCorrScaledForRow(cp, r, allowTheoretical: false);
       debugPrint(' computeActualRefsForCalPoint: row=$r thermScaled=$thermScaled');
       if (thermScaled == null) {
         finalTemps[r] = '';
@@ -796,7 +780,6 @@ class CalibrationProvider extends ChangeNotifier {
   }
 
   // ------------------------- other utilities -------------------------
-  /// Backwards-compatible setter (some screens used setAddresses previously)
   void setAddresses(List<Address> list) {
     addresses = list;
     debugPrint('Loaded addresses: ${addresses.length}');
