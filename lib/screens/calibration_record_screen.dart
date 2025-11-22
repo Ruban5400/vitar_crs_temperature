@@ -1,38 +1,47 @@
+// filename: lib/screens/calibration_record_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
-import '../providers/calibration_provider.dart';
-import '../services/address_service.dart';
-import '../widgets/editable_data_field.dart';
-import '../widgets/form_row_item.dart';
-import '../widgets/searchable_address_dropdown.dart';
+import 'package:vitar_crs_temperature/providers/calibration_provider.dart';
+import 'package:vitar_crs_temperature/widgets/editable_data_field.dart';
+import 'package:vitar_crs_temperature/widgets/form_row_item.dart';
+import 'package:vitar_crs_temperature/widgets/searchable_address_dropdown.dart';
 import 'calibration_form_value.dart';
+import 'package:vitar_crs_temperature/models/address.dart';
 
 class CalibrationRecordScreen extends StatefulWidget {
   const CalibrationRecordScreen({super.key});
 
   @override
-  State<CalibrationRecordScreen> createState() => _CalibrationRecordScreenState();
+  State<CalibrationRecordScreen> createState() =>
+      _CalibrationRecordScreenState();
 }
 
 class _CalibrationRecordScreenState extends State<CalibrationRecordScreen> {
-
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final provider = Provider.of<CalibrationProvider>(context, listen: false);
-      final addressService = AddressService();
-      final list = await addressService.fetchAddressData();
-      provider.setAddresses(list);
 
+    // After first frame, tell the provider to load dynamic data from Supabase.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final provider = context.read<CalibrationProvider>();
+
+      // provider methods fetch from Supabase via services (no services used directly in the screen)
+      provider.loadAddresses().catchError((e, st) {
+        debugPrint('loadAddresses failed: $e\n$st');
+      });
+      provider.loadMasterOptions().catchError((e, st) {
+        debugPrint('loadMasterOptions failed: $e\n$st');
+      });
+      provider.loadMeterTable().catchError((e, st) {
+        debugPrint('loadMeterTable failed: $e\n$st');
+      });
     });
   }
 
-
   @override
   Widget build(BuildContext context) {
-    final provider = Provider.of<CalibrationProvider>(context, listen: false);
+    final providerNoListen = context.read<CalibrationProvider>();
+
     return Scaffold(
       appBar: AppBar(
         title: const Text(
@@ -45,7 +54,7 @@ class _CalibrationRecordScreenState extends State<CalibrationRecordScreen> {
           IconButton(
             icon: const Icon(Icons.refresh, color: Colors.white),
             tooltip: 'Reset Data',
-            onPressed: provider.resetAll, // safe: this is a callback only
+            onPressed: providerNoListen.resetAll,
           ),
         ],
       ),
@@ -67,49 +76,54 @@ class _CalibrationRecordScreenState extends State<CalibrationRecordScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        FormRowItem(
+                        const FormRowItem(
                           label: 'Certificate No.',
-                          valueWidget: EditableDataField(
-                            fieldName: 'CertificateNo',
-                          ),
+                          valueWidget:
+                          EditableDataField(fieldName: 'CertificateNo'),
                         ),
-                        FormRowItem(
+                        const FormRowItem(
                           label: 'Instrument',
-                          valueWidget: EditableDataField(
-                            fieldName: 'Instrument',
-                          ),
+                          valueWidget:
+                          EditableDataField(fieldName: 'Instrument'),
                         ),
-                        FormRowItem(
+                        const FormRowItem(
                           label: 'Make',
                           valueWidget: EditableDataField(fieldName: 'Make'),
                         ),
-                        FormRowItem(
+                        const FormRowItem(
                           label: 'Model',
                           valueWidget: EditableDataField(fieldName: 'Model'),
                         ),
-                        FormRowItem(
+                        const FormRowItem(
                           label: 'Serial No.',
-                          valueWidget: EditableDataField(fieldName: 'SerialNo'),
+                          valueWidget:
+                          EditableDataField(fieldName: 'SerialNo'),
                         ),
                         const Divider(height: 20, color: Colors.teal),
 
+                        // Customer Name: only rebuild when addresses list changes
                         FormRowItem(
                           label: 'Customer Name',
-                          valueWidget: Consumer<CalibrationProvider>(
-                            builder: (context, provider, child) {
-                              final addresses = provider.addresses;
-                              final current = provider.data.customerName;
+                          valueWidget: Selector<CalibrationProvider, List<Address>>(
+                            selector: (_, prov) => prov.addresses,
+                            builder:
+                                (BuildContext context, List<Address> addresses, Widget? child) {
+                              final current =
+                                  context.read<CalibrationProvider>().data.customerName;
                               return SearchableAddressDropdown(
                                 addresses: addresses,
                                 selectedName: current,
                                 onSelected: (name) {
-                                  provider.updateField('CustomerName', name);
+                                  context
+                                      .read<CalibrationProvider>()
+                                      .updateField('CustomerName', name);
                                 },
                               );
                             },
                           ),
                         ),
-                        FormRowItem(
+
+                        const FormRowItem(
                           label: 'CMR No.',
                           valueWidget: EditableDataField(fieldName: 'CMRNo'),
                         ),
@@ -126,27 +140,21 @@ class _CalibrationRecordScreenState extends State<CalibrationRecordScreen> {
                         _buildEnvironmentRow(context),
                         _buildConditionRow(context),
                         const Divider(height: 20, color: Colors.teal),
-                        FormRowItem(
+                        const FormRowItem(
                           label: 'Remarks',
                           valueWidget: EditableDataField(fieldName: 'Remark'),
                         ),
-                        FormRowItem(
+                        const FormRowItem(
                           label: 'Thermohygro meter',
-                          valueWidget: EditableDataField(
-                            fieldName: 'Thermohygrometer',
-                          ),
+                          valueWidget: EditableDataField(fieldName: 'Thermohygrometer'),
                         ),
-                        FormRowItem(
+                        const FormRowItem(
                           label: 'Resolution',
-                          valueWidget: EditableDataField(
-                            fieldName: 'Resolution',
-                          ),
+                          valueWidget: EditableDataField(fieldName: 'Resolution'),
                         ),
-                        FormRowItem(
+                        const FormRowItem(
                           label: 'Ref. Method',
-                          valueWidget: EditableDataField(
-                            fieldName: 'RefMethod',
-                          ),
+                          valueWidget: EditableDataField(fieldName: 'RefMethod'),
                         ),
 
                         const SizedBox(height: 32),
@@ -194,7 +202,6 @@ class _CalibrationRecordScreenState extends State<CalibrationRecordScreen> {
   }
 
   Widget _buildEnvironmentRow(BuildContext context) {
-    final provider = Provider.of<CalibrationProvider>(context, listen: false);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6.0),
       child: IntrinsicHeight(
@@ -205,9 +212,9 @@ class _CalibrationRecordScreenState extends State<CalibrationRecordScreen> {
               children: [
                 SizedBox(
                   width: 170,
-                  child: Text(
+                  child: const Text(
                     'Ambient Temp.',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                     ),
@@ -217,11 +224,9 @@ class _CalibrationRecordScreenState extends State<CalibrationRecordScreen> {
                 Expanded(
                   flex: 1,
                   child: Row(
-                    children: [
-                      const Text('Max: ', style: TextStyle(fontSize: 13)),
-                      Expanded(
-                        child: EditableDataField(fieldName: 'AmbientTempMax'),
-                      ),
+                    children: const [
+                      Text('Max: ', style: TextStyle(fontSize: 13)),
+                      Expanded(child: EditableDataField(fieldName: 'AmbientTempMax')),
                     ],
                   ),
                 ),
@@ -229,11 +234,9 @@ class _CalibrationRecordScreenState extends State<CalibrationRecordScreen> {
                 Expanded(
                   flex: 1,
                   child: Row(
-                    children: [
-                      const Text('Min: ', style: TextStyle(fontSize: 13)),
-                      Expanded(
-                        child: EditableDataField(fieldName: 'AmbientTempMin'),
-                      ),
+                    children: const [
+                      Text('Min: ', style: TextStyle(fontSize: 13)),
+                      Expanded(child: EditableDataField(fieldName: 'AmbientTempMin')),
                     ],
                   ),
                 ),
@@ -244,20 +247,17 @@ class _CalibrationRecordScreenState extends State<CalibrationRecordScreen> {
               children: [
                 SizedBox(
                   width: 170,
-                  child: Text(
+                  child: const Text(
                     'Relative Humidity',
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
                   ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
                   flex: 1,
                   child: Row(
-                    children: [
-                      const Text('Max: ', style: TextStyle(fontSize: 13)),
+                    children: const [
+                      Text('Max: ', style: TextStyle(fontSize: 13)),
                       Expanded(child: EditableDataField(fieldName: 'RHMax')),
                     ],
                   ),
@@ -266,8 +266,8 @@ class _CalibrationRecordScreenState extends State<CalibrationRecordScreen> {
                 Expanded(
                   flex: 1,
                   child: Row(
-                    children: [
-                      const Text('Min: ', style: TextStyle(fontSize: 13)),
+                    children: const [
+                      Text('Min: ', style: TextStyle(fontSize: 13)),
                       Expanded(child: EditableDataField(fieldName: 'RHMin')),
                     ],
                   ),
@@ -281,7 +281,7 @@ class _CalibrationRecordScreenState extends State<CalibrationRecordScreen> {
   }
 
   Widget _buildConditionRow(BuildContext context) {
-    final provider = Provider.of<CalibrationProvider>(context, listen: false);
+    final provider = context.read<CalibrationProvider>();
     final data = provider.data;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -290,30 +290,25 @@ class _CalibrationRecordScreenState extends State<CalibrationRecordScreen> {
           children: [
             SizedBox(
               width: 170,
-              child: Text(
+              child: const Text(
                 'Calibrated at:',
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
               ),
             ),
-            SizedBox(width: 5),
+            const SizedBox(width: 5),
             Row(
               children: [
                 Radio<String>(
                   value: 'Lab',
                   groupValue: data.calibratedAt,
-                  onChanged: (v) =>
-                      provider.updateField('CalibratedAt', v ?? ''),
+                  onChanged: (v) => provider.updateField('CalibratedAt', v ?? ''),
                 ),
                 const Text('Lab', style: TextStyle(fontSize: 13)),
-                SizedBox(width: 5),
+                const SizedBox(width: 5),
                 Radio<String>(
                   value: 'Site',
                   groupValue: data.calibratedAt,
-                  onChanged: (v) =>
-                      provider.updateField('CalibratedAt', v ?? ''),
+                  onChanged: (v) => provider.updateField('CalibratedAt', v ?? ''),
                 ),
                 const Text('Site', style: TextStyle(fontSize: 13)),
               ],
@@ -332,25 +327,17 @@ class _CalibrationRecordScreenState extends State<CalibrationRecordScreen> {
                     style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
                   ),
                   RadioListTile<String>(
-                    title: const Text(
-                      'Physically good',
-                      style: TextStyle(fontSize: 13),
-                    ),
+                    title: const Text('Physically good', style: TextStyle(fontSize: 13)),
                     value: 'Physically good',
                     groupValue: data.instrumentConditionReceived,
-                    onChanged: (v) =>
-                        provider.updateCondition('Received', v ?? ''),
+                    onChanged: (v) => provider.updateCondition('Received', v ?? ''),
                     dense: true,
                   ),
                   RadioListTile<String>(
-                    title: const Text(
-                      'Needs repair',
-                      style: TextStyle(fontSize: 13),
-                    ),
+                    title: const Text('Needs repair', style: TextStyle(fontSize: 13)),
                     value: 'Needs repair',
                     groupValue: data.instrumentConditionReceived,
-                    onChanged: (v) =>
-                        provider.updateCondition('Received', v ?? ''),
+                    onChanged: (v) => provider.updateCondition('Received', v ?? ''),
                     dense: true,
                   ),
                 ],
@@ -365,25 +352,17 @@ class _CalibrationRecordScreenState extends State<CalibrationRecordScreen> {
                     style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
                   ),
                   RadioListTile<String>(
-                    title: const Text(
-                      'Calibrated and tested serviceable',
-                      style: TextStyle(fontSize: 13),
-                    ),
+                    title: const Text('Calibrated and tested serviceable', style: TextStyle(fontSize: 13)),
                     value: 'Calibrated and tested serviceable',
                     groupValue: data.instrumentConditionReturned,
-                    onChanged: (v) =>
-                        provider.updateCondition('Returned', v ?? ''),
+                    onChanged: (v) => provider.updateCondition('Returned', v ?? ''),
                     dense: true,
                   ),
                   RadioListTile<String>(
-                    title: const Text(
-                      'Not fit for calibration',
-                      style: TextStyle(fontSize: 13),
-                    ),
+                    title: const Text('Not fit for calibration', style: TextStyle(fontSize: 13)),
                     value: 'Not fit for calibration',
                     groupValue: data.instrumentConditionReturned,
-                    onChanged: (v) =>
-                        provider.updateCondition('Returned', v ?? ''),
+                    onChanged: (v) => provider.updateCondition('Returned', v ?? ''),
                     dense: true,
                   ),
                 ],
@@ -395,8 +374,8 @@ class _CalibrationRecordScreenState extends State<CalibrationRecordScreen> {
     );
   }
 
-  Widget _buildDatePickerField(BuildContext context, String fieldName) {
-    final provider = Provider.of<CalibrationProvider>(context, listen: false);
+  static Widget _buildDatePickerField(BuildContext context, String fieldName) {
+    final provider = context.read<CalibrationProvider>();
     final currentValue = provider.getFieldValue(fieldName);
 
     return InkWell(
@@ -411,7 +390,7 @@ class _CalibrationRecordScreenState extends State<CalibrationRecordScreen> {
             return Theme(
               data: Theme.of(context).copyWith(
                 colorScheme: const ColorScheme.light(
-                  primary: Colors.teal, // header color
+                  primary: Colors.teal,
                   onPrimary: Colors.white,
                   onSurface: Colors.black,
                 ),
@@ -420,9 +399,9 @@ class _CalibrationRecordScreenState extends State<CalibrationRecordScreen> {
             );
           },
         );
-        if (picked != null) {
+        if (picked != null && context.mounted) {
           final formatted = "${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}";
-          provider.updateField(fieldName, formatted);
+          context.read<CalibrationProvider>().updateField(fieldName, formatted);
         }
       },
       child: Container(
@@ -435,12 +414,10 @@ class _CalibrationRecordScreenState extends State<CalibrationRecordScreen> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              currentValue?.isNotEmpty == true ? currentValue! : 'Select Date',
+              (currentValue?.isNotEmpty == true) ? currentValue! : 'Select Date',
               style: TextStyle(
                 fontSize: 14,
-                color: currentValue?.isNotEmpty == true
-                    ? Colors.black
-                    : Colors.grey.shade600,
+                color: (currentValue?.isNotEmpty == true) ? Colors.black : Colors.grey.shade600,
               ),
             ),
             const Icon(Icons.calendar_today, size: 18, color: Colors.teal),
@@ -449,5 +426,4 @@ class _CalibrationRecordScreenState extends State<CalibrationRecordScreen> {
       ),
     );
   }
-
 }

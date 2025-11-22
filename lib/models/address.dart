@@ -1,4 +1,4 @@
-// Address model used in other places (kept here for convenience)
+// filename: lib/models/address.dart
 class Address {
   final String customerName;
   final String address1;
@@ -6,7 +6,7 @@ class Address {
   final String address3;
   final String address4;
 
-  Address({
+  const Address({
     required this.customerName,
     required this.address1,
     required this.address2,
@@ -23,6 +23,14 @@ class Address {
       address4: json['address_4'] as String? ?? 'N/A',
     );
   }
+
+  Map<String, dynamic> toJson() => {
+    'customer_list': customerName,
+    'address_1': address1,
+    'address_2': address2,
+    'address_3': address3,
+    'address_4': address4,
+  };
 
   @override
   String toString() {

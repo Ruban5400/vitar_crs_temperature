@@ -1,3 +1,4 @@
+// filename: lib/models/meter_entry.dart
 class MeterEntry {
   final int id;
   final double lowerValue;
@@ -8,13 +9,13 @@ class MeterEntry {
   final double upperUncertainty;
   final String meterModel;
 
-  MeterEntry({
+  const MeterEntry({
     required this.id,
     required this.lowerValue,
     required this.upperValue,
     required this.upperCorrection,
-    required this.lowerCorrection,
     required this.lowerUncertainty,
+    required this.lowerCorrection,
     required this.upperUncertainty,
     required this.meterModel,
   });
@@ -24,13 +25,24 @@ class MeterEntry {
       id: (json['id'] as num?)?.toInt() ?? 0,
       lowerValue: (json['lower_value'] as num?)?.toDouble() ?? 0.0,
       upperValue: (json['upper_value'] as num?)?.toDouble() ?? 0.0,
-      lowerCorrection: (json['lower_correction'] as num?)?.toDouble() ?? 0.0,
       upperCorrection: (json['upper_correction'] as num?)?.toDouble() ?? 0.0,
+      lowerCorrection: (json['lower_correction'] as num?)?.toDouble() ?? 0.0,
       lowerUncertainty: (json['lower_uncertainty'] as num?)?.toDouble() ?? 0.0,
       upperUncertainty: (json['upper_uncertainty'] as num?)?.toDouble() ?? 0.0,
       meterModel: json['meter_model'] as String? ?? 'N/A',
     );
   }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'lower_value': lowerValue,
+    'upper_value': upperValue,
+    'upper_correction': upperCorrection,
+    'lower_uncertainty': lowerUncertainty,
+    'lower_correction': lowerCorrection,
+    'upper_uncertainty': upperUncertainty,
+    'meter_model': meterModel,
+  };
 
   @override
   String toString() {

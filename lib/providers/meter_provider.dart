@@ -1,23 +1,32 @@
-import 'package:flutter/material.dart';
-import '../models/meter_entry.dart';
+// filename: lib/providers/meter_provider.dart
+import 'package:flutter/foundation.dart';
+import 'package:vitar_crs_temperature/models/meter_entry.dart';
+import 'package:vitar_crs_temperature/services/meter_service.dart';
 
 class MeterProvider extends ChangeNotifier {
   final List<MeterEntry> _rows = [];
-
-  List<MeterEntry> get rows => List.unmodifiable(_rows);
+  final MeterService _service;
 
   bool loading = false;
 
-  /// Replace this with your Supabase fetch method.
-  /// For now it returns already-populated rows or sample data if empty.
+  MeterProvider({MeterService? service}) : _service = service ?? MeterService();
+
+  List<MeterEntry> get rows => List.unmodifiable(_rows);
+
   Future<List<MeterEntry>> fetchAll() async {
     loading = true;
     notifyListeners();
     try {
-      // If your app already loaded rows earlier, return them:
+      // Ask service for rows (from Supabase)
+      final fetched = await _service.fetchMeterData();
+      if (fetched.isNotEmpty) {
+        replaceAll(fetched);
+        return _rows;
+      }
+
+      // fallback: keep your local sample data
       if (_rows.isNotEmpty) return _rows;
 
-      // TODO: Replace sample below with actual Supabase call.
       await Future.delayed(const Duration(milliseconds: 200));
       final sample = <MeterEntry>[
         MeterEntry(id: 1, lowerValue: 18.526, upperValue: 60.266, lowerCorrection: -0.006, upperCorrection: -0.01, lowerUncertainty: 0.002, upperUncertainty: 0.002, meterModel: 'ST-MC6-1-600ohm-I'),

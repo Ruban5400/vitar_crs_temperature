@@ -1,9 +1,9 @@
+// filename: lib/screens/calibration_form_page.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
-import '../providers/calibration_provider.dart';
-import '../providers/meter_provider.dart';
-import '../widgets/cal_point_card.dart';
+import 'package:vitar_crs_temperature/providers/calibration_provider.dart';
+import 'package:vitar_crs_temperature/providers/meter_provider.dart';
+import 'package:vitar_crs_temperature/widgets/cal_point_card.dart';
 import 'calculated_screen.dart';
 
 class CalibrationFormPage extends StatelessWidget {
@@ -11,6 +11,7 @@ class CalibrationFormPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // listen: false because we use Consumers/Providers inside where needed
     final provider = Provider.of<CalibrationProvider>(context, listen: false);
 
     return Scaffold(
@@ -21,7 +22,7 @@ class CalibrationFormPage extends StatelessWidget {
         ),
         backgroundColor: Colors.teal,
         elevation: 4,
-        iconTheme: IconThemeData(color: Colors.white),
+        iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: SafeArea(
         child: Center(
@@ -63,8 +64,7 @@ class CalibrationFormPage extends StatelessWidget {
                                         vertical: 6,
                                       ),
                                     ),
-                                    onChanged: (v) =>
-                                        prov.updateField('SerialNo', v),
+                                    onChanged: (v) => prov.updateField('SerialNo', v),
                                   ),
                                 ),
                               ],
@@ -76,8 +76,7 @@ class CalibrationFormPage extends StatelessWidget {
 
                       LayoutBuilder(
                         builder: (context, constraints) {
-                          final double itemWidth =
-                              (constraints.maxWidth - 12) / 2;
+                          final double itemWidth = (constraints.maxWidth - 12) / 2;
                           return Wrap(
                             spacing: 8,
                             runSpacing: 8,
@@ -92,7 +91,6 @@ class CalibrationFormPage extends StatelessWidget {
                       ),
 
                       const SizedBox(height: 12),
-                      // button to continue
                       ElevatedButton(
                         onPressed: () async {
                           final calProv = Provider.of<CalibrationProvider>(
@@ -104,6 +102,7 @@ class CalibrationFormPage extends StatelessWidget {
                             listen: false,
                           );
 
+                          // debug logs (optional)
                           for (var i = 0; i < calProv.calPoints.length; i++) {
                             debugPrint(
                               '--- CalPoint #${i + 1} refReadings: ${calProv.calPoints[i].refReadings}',
@@ -113,67 +112,60 @@ class CalibrationFormPage extends StatelessWidget {
                             );
                           }
 
-                          // compute master-based Actual Ref for each cal-point
+                          // compute master-based Actual Ref for each cal-point (initial)
                           for (int i = 0; i < calProv.calPoints.length; i++) {
                             calProv.computeActualRefsForCalPoint(i);
                           }
 
-                          final calibrationProvider = CalibrationProvider();
+                          // Example of generating a table — use existing calProv, not a new provider.
+                          // final settingValue = calProv.calPoints[0].setting;
+                          // final table = calProv.generateTableForCalPoint(0);
 
-                          // ✅ Use the actual "setting" value stored for the cal point
-                          final settingValue = calProv.calPoints[0].setting;
-                          calibrationProvider.updateCalPointSetting(
-                            0,
-                            settingValue,
-                          );
-
-                          List<List<double>> table = calibrationProvider
-                              .generateTableForCalPoint(0);
-
-                          // loader
-                          showDialog(
+                          // show loader
+                          showDialog<void>(
                             context: context,
                             barrierDismissible: false,
-                            builder: (_) => const Center(
-                              child: CircularProgressIndicator(),
-                            ),
+                            builder: (_) => const Center(child: CircularProgressIndicator()),
                           );
 
                           try {
-                            // 1) compute averages
+                            // 1) compute averages (populates nothing in provider except returns values)
                             calProv.computeAndStoreMeterCorrections();
 
-                            // 2) load meter table (rows)
+                            // 2) load meter table (rows) from MeterProvider (which uses MeterService -> Supabase)
                             final rows = await meterProv.fetchAll();
 
-                            // 3) compute interpolated meter corrections into meterCorrPerRow (if you have rows)
+                            // 3) compute interpolated meter corrections into meterCorrPerRow
                             calProv.calculateMeterCorrections(rows);
 
-                            // 4) compute actual refs (this will now see meterCorrPerRow)
+                            // 4) compute actual refs now that meterCorrPerRow is updated
                             for (int i = 0; i < calProv.calPoints.length; i++) {
                               calProv.computeActualRefsForCalPoint(i);
                             }
 
-                            Navigator.of(context).pop(); // remove loader
+                            // close loader safely
+                            if (context.mounted) Navigator.of(context).pop();
 
-                            // 4) navigate to report
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) =>
-                                    DetailedReportPage(meterEntries: rows),
-                              ),
-                            );
-                          } catch (e, st) {
-                            Navigator.of(context).pop();
-                            debugPrint('Error preparing calculations: $e\n$st');
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  'Failed to prepare calculations: $e',
+                            // navigate to report page with rows
+                            if (context.mounted) {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => DetailedReportPage(meterEntries: rows),
                                 ),
-                              ),
-                            );
+                              );
+                            }
+                          } catch (e, st) {
+                            // ensure loader is closed even on error
+                            if (context.mounted) Navigator.of(context).pop();
+                            debugPrint('Error preparing calculations: $e\n$st');
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Failed to prepare calculations: $e'),
+                                ),
+                              );
+                            }
                           }
                         },
                         child: const Padding(

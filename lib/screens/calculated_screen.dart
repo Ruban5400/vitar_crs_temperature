@@ -1,18 +1,19 @@
-// lib/screens/detailed_report_page.dart
-
+// filename: lib/screens/detailed_report_page.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
-import '../models/meter_entry.dart';
-import '../providers/calibration_provider.dart';
+import 'package:vitar_crs_temperature/models/meter_entry.dart';
+import 'package:vitar_crs_temperature/providers/calibration_provider.dart';
 import 'coc_preview_page.dart';
 
 class DetailedReportPage extends StatefulWidget {
   final List<MeterEntry> meterEntries;
   final int startPageIndex;
 
-  const DetailedReportPage({Key? key, required this.meterEntries, this.startPageIndex = 0})
-      : super(key: key);
+  const DetailedReportPage({
+    Key? key,
+    required this.meterEntries,
+    this.startPageIndex = 0,
+  }) : super(key: key);
 
   @override
   State<DetailedReportPage> createState() => _DetailedReportPageState();
@@ -20,7 +21,7 @@ class DetailedReportPage extends StatefulWidget {
 
 class _DetailedReportPageState extends State<DetailedReportPage> {
   late final PageController _pageController;
-  int _current = 0;
+  late int _current;
 
   @override
   void initState() {
@@ -47,8 +48,8 @@ class _DetailedReportPageState extends State<DetailedReportPage> {
     );
   }
 
-  Widget _buildCalPointBlock(BuildContext context, int calIndex, List<MeterEntry> meterEntries) {
-    final prov = Provider.of<CalibrationProvider>(context, listen: false);
+  Widget _buildCalPointBlock(BuildContext context, int calIndex) {
+    final prov = context.read<CalibrationProvider>();
     final cal = prov.calPoints[calIndex];
 
     // fallback mapping for display only (do not overwrite provider values)
@@ -56,19 +57,18 @@ class _DetailedReportPageState extends State<DetailedReportPage> {
     MeterEntry? m;
     if (widget.meterEntries.length > base) m = widget.meterEntries[base];
 
-    final List<double> refValues = [];
-
-    // try to get a reference-indicated temperature (used to compute Difference = ReferenceIndicated - TestActual)
+    // try to get a numeric reference indicated value from rightInfo
     double? referenceIndicatedFromRightInfo;
-    // try common keys first
-    final candidates = ['Ref. Ind.', 'Ref Ind.', 'RefInd', 'RefIndicated', 'Ref Ind', 'Ref.Ind'];
+    const candidates = ['Ref. Ind.', 'Ref Ind.', 'RefInd', 'RefIndicated', 'Ref Ind', 'Ref.Ind'];
     for (final k in candidates) {
       if (cal.rightInfo.containsKey(k)) {
         final s = cal.rightInfo[k]!.trim();
-        if (s.isNotEmpty) referenceIndicatedFromRightInfo = double.tryParse(s);
+        if (s.isNotEmpty) {
+          referenceIndicatedFromRightInfo = double.tryParse(s);
+          if (referenceIndicatedFromRightInfo != null) break;
+        }
       }
     }
-    // fallback: any numeric in rightInfo
     if (referenceIndicatedFromRightInfo == null) {
       for (final e in cal.rightInfo.entries) {
         final p = double.tryParse(e.value.trim());
@@ -79,14 +79,19 @@ class _DetailedReportPageState extends State<DetailedReportPage> {
       }
     }
 
-    // Prepare therm interpolation as fallback (but prefer stored master-based actualRefPerRow)
+    // therm fallback only if actualRefPerRow is empty
     List<String>? thermFallback;
     if (cal.actualRefPerRow.where((s) => s.isNotEmpty).isEmpty) {
       thermFallback = prov.computeTherCorrections(calIndex);
     }
 
-    // Also ensure we have computed "actualRefPerRow" using masters if the cal point was prepared
-    // (you may call prov.computeActualRefsForCalPoint(index) earlier in workflow where appropriate)
+    // Collect reference numeric values to compute average at end of block
+    final List<double> refValues = <double>[];
+
+    String _formatNullableDouble(double? v, {int frac = 4}) {
+      if (v == null) return '';
+      return v.toStringAsFixed(frac);
+    }
 
     return Card(
       elevation: 2,
@@ -101,7 +106,7 @@ class _DetailedReportPageState extends State<DetailedReportPage> {
           const SizedBox(height: 8),
 
           // HEADERS
-          Row(children: const [
+          const Row(children: [
             Expanded(child: Text('Reference Reading')),
             SizedBox(width: 8),
             Expanded(child: Text('Meter Corr.')),
@@ -124,34 +129,33 @@ class _DetailedReportPageState extends State<DetailedReportPage> {
           // 6 rows
           ...List.generate(6, (r) {
             // Reference (provider preferred)
-            final providerRef = (r < cal.refReadings.length) ? cal.refReadings[r] : '';
+            final providerRef = (r < cal.refReadings.length) ? cal.refReadings[r].trim() : '';
             String refDisplay = '';
-            if (providerRef.trim().isNotEmpty) {
-              refDisplay = providerRef.trim();
+            if (providerRef.isNotEmpty) {
+              refDisplay = providerRef;
             } else if (m != null) {
-              refDisplay = (r % 2 == 0) ? m.lowerValue.toStringAsFixed(4) : m.upperValue.toStringAsFixed(4);
+              refDisplay = (r % 2 == 0) ? _formatNullableDouble(m.lowerValue) : _formatNullableDouble(m.upperValue);
             }
 
-            // add for average calc
             final refNum = double.tryParse(refDisplay);
             if (refNum != null) refValues.add(refNum);
 
             // Meter Corr (computed list preferred)
             String meterCorr = '';
-            if (cal.meterCorrPerRow.isNotEmpty && cal.meterCorrPerRow[r].isNotEmpty) {
+            if (cal.meterCorrPerRow.isNotEmpty && r < cal.meterCorrPerRow.length && cal.meterCorrPerRow[r].isNotEmpty) {
               meterCorr = cal.meterCorrPerRow[r];
             } else if (m != null) {
-              meterCorr = (r % 2 == 0 ? m.lowerCorrection : m.upperCorrection).toStringAsFixed(4);
+              meterCorr = _formatNullableDouble(r % 2 == 0 ? m.lowerCorrection : m.upperCorrection);
             }
 
-            // Reference Indicated (Ther. Corr.) - compute as ref + meterCorr
+            // Reference Indicated (Ther. Corr.) = ref + meterCorr if numeric
             String refIndStr = '';
             final parsedRef = double.tryParse(refDisplay);
             final parsedMeterCorr = double.tryParse(meterCorr);
             if (parsedRef != null && parsedMeterCorr != null) {
               refIndStr = (parsedRef + parsedMeterCorr).toStringAsFixed(4);
-            } else {
-              refIndStr = ''; // fallback if parsing fails
+            } else if (referenceIndicatedFromRightInfo != null) {
+              refIndStr = referenceIndicatedFromRightInfo.toStringAsFixed(4);
             }
 
             // Actual Ref (prefer master-based stored values; fallback to therm interpolation)
@@ -162,22 +166,18 @@ class _DetailedReportPageState extends State<DetailedReportPage> {
               actualRefStr = thermFallback[r];
             }
 
-            // Test Reading (user-entered) - show raw string if non-numeric
+            // Test Reading (user-entered)
             final rawTest = (r < cal.testReadings.length) ? cal.testReadings[r].trim() : '';
-            String testReadingDisplay = rawTest;
-            // Calculate Test Actual as numeric if possible
             String testActualStr = '';
+            const testCorrStr = '0.0000'; // constant in your flow
             final parsedTest = double.tryParse(rawTest);
-            // testCorr is always 0.0000
-            const testCorrStr = '0.0000';
             if (parsedTest != null) {
-              testActualStr = (parsedTest + 0.0).toStringAsFixed(4); // numeric formatting
+              testActualStr = parsedTest.toStringAsFixed(4);
             } else if (rawTest.isNotEmpty) {
-              // display raw as-is (non-numeric)
-              testActualStr = rawTest;
+              testActualStr = rawTest; // show raw if non-numeric
             }
 
-            // Difference = Actual Ref - Actual Test (if numeric)
+            // Difference = Actual Ref - Test Actual (if both numeric)
             String differenceStr = '';
             final parsedActualRef = double.tryParse(actualRefStr);
             final parsedTestAct = double.tryParse(testActualStr);
@@ -196,11 +196,11 @@ class _DetailedReportPageState extends State<DetailedReportPage> {
                 const SizedBox(width: 8),
                 Expanded(child: Text(actualRefStr, textAlign: TextAlign.left)),
                 const SizedBox(width: 8),
-                Expanded(child: Text(testReadingDisplay, textAlign: TextAlign.left)), // <- Test Reading visible here
+                Expanded(child: Text(rawTest, textAlign: TextAlign.left)),
                 const SizedBox(width: 8),
                 Expanded(child: const Text(testCorrStr, textAlign: TextAlign.left)),
                 const SizedBox(width: 8),
-                Expanded(child: Text(testActualStr, textAlign: TextAlign.left)), // <- Test Actual visible here
+                Expanded(child: Text(testActualStr, textAlign: TextAlign.left)),
                 const SizedBox(width: 8),
                 Expanded(child: Text(differenceStr, textAlign: TextAlign.left)),
                 const SizedBox(width: 8),
@@ -212,9 +212,9 @@ class _DetailedReportPageState extends State<DetailedReportPage> {
 
           // Average row
           Builder(builder: (_) {
-            if (refValues.isEmpty) return const SizedBox();
+            if (refValues.isEmpty) return const SizedBox.shrink();
             final avg = refValues.reduce((a, b) => a + b) / refValues.length;
-            final computed = cal.meterCorrPerRow.isNotEmpty ? cal.meterCorrPerRow[0] : '';
+            final computed = (cal.meterCorrPerRow.isNotEmpty && cal.meterCorrPerRow[0].isNotEmpty) ? cal.meterCorrPerRow[0] : '';
             return Padding(
               padding: const EdgeInsets.symmetric(vertical: 4.0),
               child: Row(children: [
@@ -224,7 +224,7 @@ class _DetailedReportPageState extends State<DetailedReportPage> {
                 const SizedBox(width: 8),
                 const Expanded(child: Text('')),
                 const SizedBox(width: 8),
-                const Expanded(child: Text('')), // test reading avg left empty
+                const Expanded(child: Text('')),
                 const SizedBox(width: 8),
                 const Expanded(child: Text('0.0000')),
                 const SizedBox(width: 8),
@@ -249,7 +249,8 @@ class _DetailedReportPageState extends State<DetailedReportPage> {
 
   @override
   Widget build(BuildContext context) {
-    final prov = Provider.of<CalibrationProvider>(context, listen: false);
+    final prov = context.read<CalibrationProvider>();
+
     final pages = <Widget>[
       Builder(builder: (ctx) {
         return SingleChildScrollView(
@@ -257,9 +258,9 @@ class _DetailedReportPageState extends State<DetailedReportPage> {
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             _buildHeader(prov, 0, 3),
             const SizedBox(height: 12),
-            _buildCalPointBlock(ctx, 0, widget.meterEntries),
-            _buildCalPointBlock(ctx, 1, widget.meterEntries),
-            _buildCalPointBlock(ctx, 2, widget.meterEntries),
+            _buildCalPointBlock(ctx, 0),
+            _buildCalPointBlock(ctx, 1),
+            _buildCalPointBlock(ctx, 2),
           ]),
         );
       }),
@@ -269,9 +270,9 @@ class _DetailedReportPageState extends State<DetailedReportPage> {
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             _buildHeader(prov, 1, 3),
             const SizedBox(height: 12),
-            _buildCalPointBlock(ctx, 3, widget.meterEntries),
-            _buildCalPointBlock(ctx, 4, widget.meterEntries),
-            _buildCalPointBlock(ctx, 5, widget.meterEntries),
+            _buildCalPointBlock(ctx, 3),
+            _buildCalPointBlock(ctx, 4),
+            _buildCalPointBlock(ctx, 5),
           ]),
         );
       }),
@@ -281,8 +282,8 @@ class _DetailedReportPageState extends State<DetailedReportPage> {
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             _buildHeader(prov, 2, 3),
             const SizedBox(height: 12),
-            _buildCalPointBlock(ctx, 6, widget.meterEntries),
-            _buildCalPointBlock(ctx, 7, widget.meterEntries),
+            _buildCalPointBlock(ctx, 6),
+            _buildCalPointBlock(ctx, 7),
             const SizedBox(height: 24),
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: const [
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -333,13 +334,14 @@ class _DetailedReportPageState extends State<DetailedReportPage> {
               const SizedBox(width: 12),
               ElevatedButton(
                 onPressed: () {
-                  // navigate to preview first, then user can download from there
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => COCPreviewPage(meterEntries: widget.meterEntries),
-                    ),
-                  );
+                  if (context.mounted) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => COCPreviewPage(meterEntries: widget.meterEntries),
+                      ),
+                    );
+                  }
                 },
                 child: const Text('Preview COC'),
               )

@@ -1,32 +1,38 @@
+// filename: lib/services/address_service.dart
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../main.dart';
-import '../models/address.dart';
+import 'package:vitar_crs_temperature/services/supabase_service.dart';
+import 'package:vitar_crs_temperature/models/address.dart';
 
 class AddressService {
+  final SupabaseClient _client;
+
+  AddressService({SupabaseClient? client})
+      : _client = client ?? SupabaseService.instance.client;
+
+  /// Returns a typed List<Address>
   Future<List<Address>> fetchAddressData() async {
     try {
-      // 1. Await the response from Supabase
-      final response = await supabase
-          .from('vitar_address')
-          .select('*');
+      final response = await _client.from('vitar_address').select('*');
 
-      final List<dynamic> dataList = response as List<dynamic>;
+      if (response == null || response is! List) {
+        debugPrint('AddressService: unexpected response type: ${response.runtimeType}');
+        return <Address>[];
+      }
 
-      final address = dataList
-          .map((item) => Address.fromJson(item))
+      // Map only Map<String, dynamic> items to Address
+      final List<Address> addresses = response
+          .whereType<Map<String, dynamic>>()
+          .map((m) => Address.fromJson(m))
           .toList();
-      return address;
 
-
+      return addresses;
     } on PostgrestException catch (e) {
-      // Print the specific Supabase error message
-      print('Supabase Fetch Error: ${e.message}');
-      return [];
+      debugPrint('Supabase Fetch Error (address): ${e.message}');
+      return <Address>[];
     } catch (e) {
-      // Catch any remaining general Dart errors
-      print('General Error fetching meter data: $e');
-      return [];
+      debugPrint('General Error fetching address data: $e');
+      return <Address>[];
     }
   }
-
 }
