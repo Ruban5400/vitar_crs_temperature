@@ -13,6 +13,8 @@ import 'package:vitar_crs_temperature/services/master_lookup_service.dart';
 import 'package:vitar_crs_temperature/services/reference_service.dart';
 
 import '../models/calibration_point.dart';
+import '../models/permission_names.dart';
+import '../services/names_service.dart';
 
 class CalibrationProvider extends ChangeNotifier {
   final CalibrationBasicData data = CalibrationBasicData();
@@ -21,22 +23,26 @@ class CalibrationProvider extends ChangeNotifier {
   // Services (injectable for tests)
   final AddressService _addressService;
   final MeterService _meterService;
+  final NamesService _namesService;
   final MasterService _masterService;
   final ReferenceService _referenceService;
 
   // dynamic data loaded from Supabase
   List<Address> addresses = [];
   Map<String, List<String>> masterOptions = {};
+  Map<String, List<PermissionName>> namesOptions = {};
   List<MeterEntry> meterTable = [];
   Map<String, SampleData> referenceSamples = {}; // e.g., 'ST-S5' -> SampleData
 
   CalibrationProvider({
     AddressService? addressService,
     MeterService? meterService,
+    NamesService? namesService,
     MasterService? masterService,
     ReferenceService? referenceService,
   })  : _addressService = addressService ?? AddressService(),
         _meterService = meterService ?? MeterService(),
+        _namesService = namesService ?? NamesService(),
         _masterService = masterService ?? MasterService(),
         _referenceService = referenceService ?? ReferenceService() {
     // schedule async initialization after object is created
@@ -44,6 +50,7 @@ class CalibrationProvider extends ChangeNotifier {
       await loadMasterOptions();
       await loadReferenceSamples();
       await loadMeterTable();
+      await loadNamesOptions();
     });
   }
 
@@ -68,6 +75,17 @@ class CalibrationProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> loadNamesOptions() async {
+    try {
+      final map = await NamesService().fetchCalibratedAndApproved();
+      // fetchCalibratedAndApproved returns Map<String, List<PermissionName>>
+      namesOptions = map;
+      notifyListeners();
+    } catch (e, st) {
+      debugPrint('loadNamesOptions error: $e\n$st');
+    }
+  }
+
   Future<void> loadReferenceSamples() async {
     try {
       final map = await _referenceService.fetchReferenceSamples();
@@ -89,6 +107,21 @@ class CalibrationProvider extends ChangeNotifier {
       debugPrint('loadMeterTable error: $e\n$st');
     }
   }
+
+  Future<void> loadNamesTable(String type) async {
+    try {
+      final rows = await _namesService.fetchByType(type);
+      if (rows.isNotEmpty) {
+        // This should not assign to `meterTable`!
+        // If this is names data, assign to namesOptions
+        namesOptions[type] = rows;
+        notifyListeners();
+      }
+    } catch (e, st) {
+      debugPrint('loadNamesTable error: $e\n$st');
+    }
+  }
+
 
   // ---------------- core setters/getters ----------------
   void updateField(String fieldName, String value) {
@@ -785,4 +818,17 @@ class CalibrationProvider extends ChangeNotifier {
     debugPrint('Loaded addresses: ${addresses.length}');
     notifyListeners();
   }
+  String? calibratedBy;
+  String? approvedSignatory;
+
+  void setCalibratedBy(String? value) {
+    calibratedBy = value;
+    notifyListeners();
+  }
+
+  void setApprovedSignatory(String? value) {
+    approvedSignatory = value;
+    notifyListeners();
+  }
+
 }

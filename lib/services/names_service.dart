@@ -1,29 +1,52 @@
-// filename: lib/services/master_service.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:vitar_crs_temperature/services/supabase_service.dart';
+import '../models/permission_names.dart';
+import 'supabase_service.dart';
 
 class NamesService {
   final SupabaseClient _client;
-
   NamesService({SupabaseClient? client}) : _client = client ?? SupabaseService.instance.client;
 
-  /// Loads master options from 'ref_master' table returning a Map<Category, List<Value>>
-  Future<Map<String, List<String>>> fetchMasterOptions() async {
-    final Map<String, List<String>> out = {};
+  Future<List<PermissionName>> fetchByType(String type) async {
     try {
-      final res = await _client.from('ref_master').select().order('value');
-      if (res == null || res is! List) return out;
+      final res = await _client
+          .from('vitar_permission_names')
+          .select('name,role,type')
+          .eq('type', type)
+          .order('name', ascending: true);
 
-      for (final row in res) {
-        final category = (row['category'] ?? '').toString();
-        final value = (row['value'] ?? '').toString();
-        if (category.isEmpty) continue;
-        out.putIfAbsent(category, () => []).add(value);
+      final data = res as List<dynamic>? ?? [];
+      final out = <PermissionName>[];
+
+      for (final row in data) {
+        if (row is Map) {
+          out.add(PermissionName.fromMap(row));
+        } else if (row is Map<String, dynamic>) {
+          out.add(PermissionName.fromMap(row));
+        } else {
+          // defensive: try convert
+          try {
+            out.add(PermissionName.fromMap(Map<dynamic,dynamic>.from(row)));
+          } catch (_) {
+            debugPrint('NamesService.fetchByType: skipping invalid row: $row');
+          }
+        }
       }
-    } catch (e) {
-      debugPrint('MasterService.fetchMasterOptions error: $e');
+      return out;
+    } catch (e, st) {
+      debugPrint('NamesService.fetchByType error: $e\n$st');
+      return [];
     }
-    return out;
+  }
+
+  Future<Map<String, List<PermissionName>>> fetchCalibratedAndApproved() async {
+    final results = await Future.wait([
+      fetchByType('calibrated_by'),
+      fetchByType('approved_signatory'),
+    ]);
+    return {
+      'calibrated_by': results[0],
+      'approved_signatory': results[1],
+    };
   }
 }

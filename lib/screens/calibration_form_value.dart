@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:vitar_crs_temperature/providers/calibration_provider.dart';
 import 'package:vitar_crs_temperature/providers/meter_provider.dart';
 import 'package:vitar_crs_temperature/widgets/cal_point_card.dart';
+import '../models/permission_names.dart';
 import 'calculated_screen.dart';
 
 class CalibrationFormPage extends StatelessWidget {
@@ -90,6 +91,73 @@ class CalibrationFormPage extends StatelessWidget {
                         },
                       ),
 
+                      const SizedBox(height: 12),
+                      // Add these before the ElevatedButton
+                      Consumer<CalibrationProvider>(
+                        builder: (context, prov, _) {
+                          // get options safely
+                          final calibratedByOptions = prov.namesOptions['calibrated_by'] ?? [];
+                          final approvedByOptions = prov.namesOptions['approved_signatory'] ?? [];
+
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const SizedBox(height: 12),
+                              // Calibrated By
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: Colors.black, width: 1.2),
+                                ),
+                                child: DropdownButtonFormField<PermissionName>(
+                                  value: prov.data.calibratedBy,
+                                  isExpanded: true,
+                                  decoration: const InputDecoration(
+                                    border: InputBorder.none,
+                                    isDense: true,
+                                  ),
+                                  hint: const Text('Select Calibrated By'),
+                                  items: calibratedByOptions.map((name) {
+                                    return DropdownMenuItem(
+                                      value: name,
+                                      child: Text(name.name), // adjust property if needed
+                                    );
+                                  }).toList(),
+                                  onChanged: (value) {
+                                    prov.updateField('CalibratedBy', value as String);
+                                  },
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              // Approved By
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: Colors.black, width: 1.2),
+                                ),
+                                child: DropdownButtonFormField<PermissionName>(
+                                  value: prov.data.approvedBy,
+                                  isExpanded: true,
+                                  decoration: const InputDecoration(
+                                    border: InputBorder.none,
+                                    isDense: true,
+                                  ),
+                                  hint: const Text('Select Approved By'),
+                                  items: approvedByOptions.map((name) {
+                                    return DropdownMenuItem(
+                                      value: name,
+                                      child: Text(name.name),
+                                    );
+                                  }).toList(),
+                                  onChanged: (value) {
+                                    prov.updateField('ApprovedBy', value as String);
+                                  },
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
                       const SizedBox(height: 12),
                       ElevatedButton(
                         onPressed: () async {

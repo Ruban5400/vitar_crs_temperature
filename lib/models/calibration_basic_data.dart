@@ -1,4 +1,6 @@
 // filename: lib/models/calibration_basic_data.dart
+import 'package:vitar_crs_temperature/models/permission_names.dart';
+
 class CalibrationBasicData {
   String certificateNo;
   String instrument;
@@ -20,6 +22,9 @@ class CalibrationBasicData {
   String instrumentConditionReceived;
   String instrumentConditionReturned;
   String resolution;
+  PermissionName? calibratedBy;
+  PermissionName? approvedBy;
+
 
   CalibrationBasicData({
     this.certificateNo = '',
@@ -42,6 +47,8 @@ class CalibrationBasicData {
     this.instrumentConditionReceived = '',
     this.instrumentConditionReturned = '',
     this.resolution = '',
+    this.calibratedBy,
+    this.approvedBy,
   });
 
   Map<String, dynamic> toMap() => {
@@ -65,6 +72,8 @@ class CalibrationBasicData {
     'instrumentConditionReceived': instrumentConditionReceived,
     'instrumentConditionReturned': instrumentConditionReturned,
     'resolution': resolution,
+    'calibratedBy': calibratedBy?.toMap(),
+    'approvedBy': approvedBy?.toMap(),
   };
 
   factory CalibrationBasicData.fromMap(Map<String, dynamic> map) {
@@ -91,6 +100,12 @@ class CalibrationBasicData {
       instrumentConditionReturned:
       map['instrumentConditionReturned'] as String? ?? '',
       resolution: map['resolution'] as String? ?? '',
+      calibratedBy: map['calibratedBy'] != null
+          ? PermissionName.fromMap(map['calibratedBy'])
+          : null, // <-- added
+      approvedBy: map['approvedBy'] != null
+          ? PermissionName.fromMap(map['approvedBy'])
+          : null,     // <-- added
     );
   }
 

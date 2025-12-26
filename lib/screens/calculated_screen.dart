@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:vitar_crs_temperature/models/meter_entry.dart';
 import 'package:vitar_crs_temperature/providers/calibration_provider.dart';
+import '../models/permission_names.dart';
 import 'coc_preview_page.dart';
 
 class DetailedReportPage extends StatefulWidget {
@@ -298,20 +299,7 @@ class _DetailedReportPageState extends State<DetailedReportPage> {
             _buildCalPointBlock(ctx, 6),
             _buildCalPointBlock(ctx, 7),
             const SizedBox(height: 24),
-            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: const [
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('CALIBRATED BY :'),
-                SizedBox(height: 8),
-                Text('Signature : ___________________'),
-                Text('Name      : ___________________'),
-              ]),
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('VERIFIED BY :'),
-                SizedBox(height: 8),
-                Text('Signature : ___________________'),
-                Text('Name      : ___________________'),
-              ]),
-            ]),
+            _buildSignatoriesRow(context),
           ]),
         );
       }),
@@ -364,4 +352,82 @@ class _DetailedReportPageState extends State<DetailedReportPage> {
       ]),
     );
   }
+
+  Widget _buildSignatoriesRow(BuildContext context) {
+    final prov = context.read<CalibrationProvider>();
+
+    // Use typed lists
+    final List<PermissionName> calibratedList = (prov.namesOptions['calibrated_by'] ?? [])
+        .map((e) => e as PermissionName)
+        .toList();
+
+    final List<PermissionName> approvedList = (prov.namesOptions['approved_signatory'] ?? [])
+        .map((e) => e as PermissionName)
+        .toList();
+
+
+    return Row(
+      children: [
+        // ---------- Calibrated By ----------
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text("Calibrated By:", style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 6),
+              DropdownButtonFormField<String>(
+                value: prov.calibratedBy,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                ),
+                items: calibratedList.map((e) {
+                  return DropdownMenuItem<String>(
+                    value: e.name,
+                    child: Text("${e.name}  (${e.role})"),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  prov.setCalibratedBy(value);
+                },
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(width: 16),
+
+        // -------- Approved Signatory --------
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text("Approved Signatory:", style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 6),
+              DropdownButtonFormField<String>(
+                value: prov.approvedSignatory,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                ),
+                items: approvedList.map((e) {
+                  return DropdownMenuItem<String>(
+                    value: e.name,
+                    child: Text("${e.name}  (${e.role})"),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  prov.setApprovedSignatory(value);
+                },
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+
 }
