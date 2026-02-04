@@ -323,6 +323,7 @@ class _RightInfoDropdown extends StatelessWidget {
     final String? valueForDropdown = currentValue.isNotEmpty ? currentValue : (items.contains('') ? '' : null);
 
     return DropdownButtonFormField<String>(
+      isExpanded: true,
       value: valueForDropdown,
       isDense: true,
       decoration: const InputDecoration(border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.symmetric(vertical: 6, horizontal: 8)),

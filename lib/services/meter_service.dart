@@ -4,22 +4,24 @@ import 'package:vitar_crs_temperature/models/meter_entry.dart';
 
 class MeterService {
   final SupabaseClient _client;
-  MeterService({SupabaseClient? client}) : _client = client ?? Supabase.instance.client;
+  MeterService({SupabaseClient? client})
+    : _client = client ?? Supabase.instance.client;
 
-  Future<List<MeterEntry>> fetchMeterData() async {
+  Future<List<MeterEntry>> fetchMeterData({required String modelName}) async {
     try {
+
       final res = await _client
           .from('vitar_meter')
           .select('*')
-          .order('lower_value', ascending: true);
+          .eq('meter_model', modelName)
+          .order('id', ascending: true);
 
-      if (res == null || res is! List) return [];
+      // if (res == null || res is! List) return [];
 
       final rows = res
           .whereType<Map<String, dynamic>>()
           .map((m) => MeterEntry.fromJson(m))
           .toList();
-
       return rows;
     } on PostgrestException catch (e) {
       debugPrint('MeterService error: ${e.message}');

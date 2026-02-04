@@ -49,7 +49,7 @@ class CalibrationProvider extends ChangeNotifier {
     Future.microtask(() async {
       await loadMasterOptions();
       await loadReferenceSamples();
-      await loadMeterTable();
+      // await loadMeterTable();
       await loadNamesOptions();
     });
   }
@@ -96,17 +96,17 @@ class CalibrationProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> loadMeterTable() async {
-    try {
-      final rows = await _meterService.fetchMeterData();
-      if (rows.isNotEmpty) {
-        meterTable = rows;
-        notifyListeners();
-      }
-    } catch (e, st) {
-      debugPrint('loadMeterTable error: $e\n$st');
-    }
-  }
+  // Future<void> loadMeterTable() async {
+  //   try {
+  //     final rows = await _meterService.fetchMeterData();
+  //     if (rows.isNotEmpty) {
+  //       meterTable = rows;
+  //       notifyListeners();
+  //     }
+  //   } catch (e, st) {
+  //     debugPrint('loadMeterTable error: $e\n$st');
+  //   }
+  // }
 
   Future<void> loadNamesTable(String type) async {
     try {
@@ -265,22 +265,53 @@ class CalibrationProvider extends ChangeNotifier {
   ///  - always recompute meter corrections (they depend on reference readings)
   ///  - recompute actual refs for either the single cal point or all cal-points
   ///    if the changed key is global (e.g. Ref. Ther.)
-  void updateCalPointRightInfo(int pointIndex, String key, String value) {
+  // void updateCalPointRightInfo(int pointIndex, String key, String value) {
+  //   if (pointIndex < 0 || pointIndex >= calPoints.length) return;
+  //   calPoints[pointIndex].rightInfo[key] = value;
+  //   notifyListeners();
+  //
+  //   // recompute meter corrections using current meterTable (will be blank unless user has ref readings)
+  //   calculateMeterCorrections();
+  //
+  //   // if changing reference sample (affects table generation) we should update ALL points
+  //   final keyLower = key.toLowerCase();
+  //   if (keyLower.contains('ref') && keyLower.contains('ther')) {
+  //     for (int i = 0; i < calPoints.length; i++) {
+  //       computeActualRefsForCalPoint(i);
+  //     }
+  //   } else {
+  //     // otherwise recompute only the affected cal point
+  //     computeActualRefsForCalPoint(pointIndex);
+  //   }
+  // }
+
+  // Inside lib/providers/calibration_provider.dart
+
+  void updateCalPointRightInfo(int pointIndex, String key, String value) async {
     if (pointIndex < 0 || pointIndex >= calPoints.length) return;
+
     calPoints[pointIndex].rightInfo[key] = value;
     notifyListeners();
 
-    // recompute meter corrections using current meterTable (will be blank unless user has ref readings)
-    calculateMeterCorrections();
+    // NEW LOGIC: If the user selects a specific Reference Indicator (meter_model)
+    if (key == 'Ref. Ind.' || key == 'Ref Ind.') {
+      try {
+        // Fetch only the rows matching the selected model
+        final rows = await _meterService.fetchMeterData(modelName: value);
 
-    // if changing reference sample (affects table generation) we should update ALL points
-    final keyLower = key.toLowerCase();
-    if (keyLower.contains('ref') && keyLower.contains('ther')) {
-      for (int i = 0; i < calPoints.length; i++) {
-        computeActualRefsForCalPoint(i);
+        // Update the provider's meterTable with these specific rows
+        if (rows.isNotEmpty) {
+          meterTable = rows;
+          // Re-run calculations for this point using the new meter data
+          calculateMeterCorrections();
+          computeActualRefsForCalPoint(pointIndex);
+        }
+      } catch (e) {
+        debugPrint('Error fetching specific meter data: $e');
       }
     } else {
-      // otherwise recompute only the affected cal point
+      // Standard re-calculation for other field changes
+      calculateMeterCorrections();
       computeActualRefsForCalPoint(pointIndex);
     }
   }

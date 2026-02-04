@@ -46,6 +46,6 @@ class MeterEntry {
 
   @override
   String toString() {
-    return 'MeterEntry(id:$id, lowerValue:$lowerValue, upperValue:$upperValue, lowerCorr:$lowerCorrection, upperCorr:$upperCorrection)';
+    return 'MeterEntry(id:$id, meterModel:$meterModel, lowerValue:$lowerValue, upperValue:$upperValue, lowerCorr:$lowerCorrection, upperCorr:$upperCorrection)';
   }
 }

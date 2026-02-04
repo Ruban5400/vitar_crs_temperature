@@ -32,9 +32,9 @@ class _CalibrationRecordScreenState extends State<CalibrationRecordScreen> {
       provider.loadMasterOptions().catchError((e, st) {
         debugPrint('loadMasterOptions failed: $e\n$st');
       });
-      provider.loadMeterTable().catchError((e, st) {
-        debugPrint('loadMeterTable failed: $e\n$st');
-      });
+      // provider.loadMeterTable().catchError((e, st) {
+      //   debugPrint('loadMeterTable failed: $e\n$st');
+      // });
     });
   }
 

@@ -170,16 +170,6 @@ class CalibrationFormPage extends StatelessWidget {
                             listen: false,
                           );
 
-                          // debug logs (optional)
-                          for (var i = 0; i < calProv.calPoints.length; i++) {
-                            debugPrint(
-                              '--- CalPoint #${i + 1} refReadings: ${calProv.calPoints[i].refReadings}',
-                            );
-                            debugPrint(
-                              '--- CalPoint #${i + 1} testReadings: ${calProv.calPoints[i].testReadings}',
-                            );
-                          }
-
                           // compute master-based Actual Ref for each cal-point (initial)
                           for (int i = 0; i < calProv.calPoints.length; i++) {
                             calProv.computeActualRefsForCalPoint(i);
@@ -199,9 +189,10 @@ class CalibrationFormPage extends StatelessWidget {
                           try {
                             // 1) compute averages (populates nothing in provider except returns values)
                             calProv.computeAndStoreMeterCorrections();
-
+                            final selectedModel =
+                            calProv.calPoints.first.rightInfo['Ref. Ind.'];
                             // 2) load meter table (rows) from MeterProvider (which uses MeterService -> Supabase)
-                            final rows = await meterProv.fetchAll();
+                            final rows = await meterProv.fetchAll(selectedModel);
 
                             // 3) compute interpolated meter corrections into meterCorrPerRow
                             calProv.calculateMeterCorrections(rows);
@@ -210,10 +201,8 @@ class CalibrationFormPage extends StatelessWidget {
                             for (int i = 0; i < calProv.calPoints.length; i++) {
                               calProv.computeActualRefsForCalPoint(i);
                             }
-
                             // close loader safely
                             if (context.mounted) Navigator.of(context).pop();
-
                             // navigate to report page with rows
                             if (context.mounted) {
                               Navigator.push(
