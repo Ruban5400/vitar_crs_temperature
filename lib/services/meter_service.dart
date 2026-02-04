@@ -1,40 +1,34 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../main.dart';
-import '../models/meter_entry.dart';
+import 'package:flutter/foundation.dart';
+import 'package:vitar_crs_temperature/models/meter_entry.dart';
 
 class MeterService {
-  Future<List<MeterEntry>> fetchMeterData() async {
+  final SupabaseClient _client;
+  MeterService({SupabaseClient? client})
+    : _client = client ?? Supabase.instance.client;
+
+  Future<List<MeterEntry>> fetchMeterData({required String modelName}) async {
     try {
-      // 1. Await the response from Supabase
-      final response = await supabase
-          .from('meter')
-          .select()
-      // Re-enable ordering by the correct column name (e.g., 'lv')
-          .order('lower_value', ascending: true);
 
-      // 2. CRITICAL FIX: Explicitly handle a null response from the API
-      if (response == null) {
-        return [];
-      }
+      final res = await _client
+          .from('vitar_meter')
+          .select('*')
+          .eq('meter_model', modelName)
+          .order('id', ascending: true);
 
-      // 3. Map the non-null list of JSON objects to MeterEntry objects.
-      final List<dynamic> dataList = response as List<dynamic>;
+      // if (res == null || res is! List) return [];
 
-      final meterEntries = dataList
-          .map((item) => MeterEntry.fromJson(item as Map<String, dynamic>))
+      final rows = res
+          .whereType<Map<String, dynamic>>()
+          .map((m) => MeterEntry.fromJson(m))
           .toList();
-
-      return meterEntries;
-
+      return rows;
     } on PostgrestException catch (e) {
-      // Print the specific Supabase error message
-      print('Supabase Fetch Error: ${e.message}');
+      debugPrint('MeterService error: ${e.message}');
       return [];
     } catch (e) {
-      // Catch any remaining general Dart errors
-      print('General Error fetching meter data: $e');
+      debugPrint('MeterService general error: $e');
       return [];
     }
   }
-
 }

@@ -1,7 +1,7 @@
 // lib/widgets/cal_point_card.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/calibration_provider.dart';
+import 'package:vitar_crs_temperature/providers/calibration_provider.dart';
 
 class CalPointCard extends StatefulWidget {
   final int index;
@@ -48,15 +48,15 @@ class _CalPointCardState extends State<CalPointCard> {
     if (!mounted) return;
     final data = _provider.calPoints[widget.index];
 
-    final setting = data.setting ?? '';
+    final setting = data.setting;
     if (_settingController.text != setting) _settingController.text = setting;
 
     for (int i = 0; i < 6; i++) {
-      final v = (i < data.refReadings.length) ? (data.refReadings[i] ?? '') : '';
+      final v = (i < data.refReadings.length) ? data.refReadings[i] : '';
       if (_refControllers[i].text != v) _refControllers[i].text = v;
     }
     for (int i = 0; i < 6; i++) {
-      final v = (i < data.testReadings.length) ? (data.testReadings[i] ?? '') : '';
+      final v = (i < data.testReadings.length) ? data.testReadings[i] : '';
       if (_testControllers[i].text != v) _testControllers[i].text = v;
     }
   }
@@ -131,7 +131,6 @@ class _CalPointCardState extends State<CalPointCard> {
             children: [
               // left: ref/test columns (text input controllers)
               Expanded(
-                // flex: 2,
                 child: Container(
                   padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(border: Border.all(color: Colors.black26)),
@@ -193,7 +192,6 @@ class _CalPointCardState extends State<CalPointCard> {
 
               // right: reference info column (dynamic keys from provider) rendered as dropdowns
               Expanded(
-                // flex: 1,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -237,16 +235,20 @@ class _RightInfoDropdown extends StatelessWidget {
   final String keyName;
   final String currentValue;
 
-  const _RightInfoDropdown({required this.index, required this.keyName, required this.currentValue});
+  const _RightInfoDropdown({
+    required this.index,
+    required this.keyName,
+    required this.currentValue,
+  });
 
-  // Provide options per key. Edit/extend these to match your real reference values.
-  List<String> _optionsForKey(String key) {
+  // fallback options (kept for safety)
+  List<String> _fallbackOptionsForKey(String key) {
     switch (key) {
       case 'Ref. Ther.':
-        return ['ST-S1', 'ST-S2', 'ST-S3','ST-S4', 'ST-S5', 'ST-S6', 'Other...'];
+        return ['ST-S1', 'ST-S2', 'ST-S3', 'ST-S4', 'ST-S5', 'ST-S6', 'Other...'];
       case 'Ref. Ind.':
       case 'Test Ind.':
-        return ['-','ST-MC-1','ST-MC-2','ST-MC-3','ST-MC-4','ST-MC-5','ST-MC-7','ST-MC-8','ST-MC-9','ST-MC-10','ST-MC-14','ST-MC-16','ST-MC6-1', 'ST-MC6-2', 'Other...'];
+        return ['-', 'ST-MC-1', 'ST-MC-2', 'ST-MC-3', 'ST-MC-4', 'ST-MC-5', 'ST-MC-7', 'ST-MC-8', 'ST-MC-9', 'ST-MC-10', 'ST-MC-14', 'ST-MC-16', 'ST-MC6-1', 'ST-MC6-2', 'Other...'];
       case 'Ref. Wire':
       case 'Test Wire':
         return ['-', 'Wire A', 'Wire B', 'Other...'];
@@ -255,9 +257,23 @@ class _RightInfoDropdown extends StatelessWidget {
       case 'Immer.':
         return ['140 mm', 'Other...'];
       default:
-      // For any unknown key, allow empty + Other
         return ['', 'Other...'];
     }
+  }
+
+  /// Get options: prefer provider.masterOptions[keyName], otherwise fallback.
+  List<String> _optionsForKey(BuildContext context, String key) {
+    try {
+      final prov = Provider.of<CalibrationProvider>(context, listen: false);
+      final fromMaster = prov.masterOptions[key];
+      if (fromMaster != null && fromMaster.isNotEmpty) {
+        // Ensure we return a fresh list copy
+        return List<String>.from(fromMaster);
+      }
+    } catch (_) {
+      // ignore - will use fallback
+    }
+    return _fallbackOptionsForKey(key);
   }
 
   Future<void> _askCustomValue(BuildContext context, String initial, Function(String) onSave) async {
@@ -288,36 +304,57 @@ class _RightInfoDropdown extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<CalibrationProvider>(context, listen: false);
-    final options = _optionsForKey(keyName);
 
-    // If currentValue is non-empty and not present in options, include it so dropdown can show it.
-    final items = <String>{...options};
-    if (currentValue.isNotEmpty) items.add(currentValue);
-    final sorted = items.toList();
+    // 1) Prefer DB-driven list using the visible UI key (your masterOptions keys already use these labels)
+    final List<String> items = _optionsForKey(context, keyName);
 
-    // Show `null` as placeholder if empty string
-    final valueForDropdown = (currentValue.isNotEmpty) ? currentValue : null;
+    // 2) Ensure 'Other...' present (some DB sets already include it)
+    if (!items.contains('Other...')) items.add('Other...');
+
+    // 3) If currentValue is custom and not present in items, insert it at the top so dropdown can show it.
+    if (currentValue.isNotEmpty && !items.contains(currentValue)) {
+      items.insert(0, currentValue);
+    }
+
+    // 4) Prepare display labels (show '(empty)' for empty string entry)
+    final displayList = items.map((it) => it.isEmpty ? '(empty)' : it).toList();
+
+    // 5) Value selection: when currentValue is empty string, set value to '' if available, else null
+    final String? valueForDropdown = currentValue.isNotEmpty ? currentValue : (items.contains('') ? '' : null);
 
     return DropdownButtonFormField<String>(
+      isExpanded: true,
       value: valueForDropdown,
       isDense: true,
       decoration: const InputDecoration(border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.symmetric(vertical: 6, horizontal: 8)),
-      items: sorted.map((opt) {
+      items: List.generate(items.length, (i) {
+        final opt = items[i];
+        final label = displayList[i];
         return DropdownMenuItem<String>(
-          value: opt.isEmpty ? '' : opt,
-          child: Text(opt.isEmpty ? '(empty)' : opt),
+          value: opt,
+          child: Text(label),
         );
-      }).toList(),
+      }),
       onChanged: (selected) async {
         if (selected == null) return;
         if (selected == 'Other...') {
-          await _askCustomValue(context, currentValue, (custom) {
+          await _askCustomValue(context, currentValue, (custom) async {
             provider.updateCalPointRightInfo(index, keyName, custom);
+
+            // recompute dependent values
+            provider.calculateMeterCorrections();
+            provider.computeActualRefsForCalPoint(index);
           });
         } else {
           provider.updateCalPointRightInfo(index, keyName, selected);
+
+          // recompute dependent values
+          provider.calculateMeterCorrections();
+          provider.computeActualRefsForCalPoint(index);
         }
       },
     );
   }
 }
+
+
